@@ -1,5 +1,4 @@
 #pragma once
-#include "stdafx.h"
 #include "BaseFdsChannel.h"
 #include <assert.h>
 #include <algorithm>  // std::min

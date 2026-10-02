@@ -25,8 +25,6 @@
 #include "ChannelLevelState.h"
 #include "Blip_Buffer/Blip_Buffer.h"
 #include "APU/mesen/Namco163Audio.h"
-#include "FamiTracker.h"
-#include "Settings.h"
 
 class CN163 : public CSoundChip {
 public:

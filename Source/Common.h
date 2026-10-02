@@ -21,6 +21,27 @@
 #pragma once
 
 #include <cstdint>
+#include <cassert>
+
+#ifndef SAFE_RELEASE
+#define SAFE_RELEASE(p) do { if ((p) != nullptr) { delete (p); (p) = nullptr; } } while (0)
+#endif
+
+#ifndef SAFE_RELEASE_ARRAY
+#define SAFE_RELEASE_ARRAY(p) do { if ((p) != nullptr) { delete [] (p); (p) = nullptr; } } while (0)
+#endif
+
+#ifndef AfxDebugBreak
+#define AfxDebugBreak() assert(false)
+#endif
+
+#ifndef ASSERT
+#define ASSERT(expr) assert(expr)
+#endif
+
+#ifndef VERIFY
+#define VERIFY(expr) assert(expr)
+#endif
 
 #define _MAIN_H_
 

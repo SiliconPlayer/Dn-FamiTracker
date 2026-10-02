@@ -18,7 +18,6 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#include "../stdafx.h"
 #include "../Common.h"
 #include <algorithm>  // std::min
 #include "APU.h"

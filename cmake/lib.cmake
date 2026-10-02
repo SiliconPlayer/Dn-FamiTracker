@@ -4,6 +4,29 @@ if(BUILD_LIB)
     add_library(dnfamitracker STATIC
         Source/dnfamitracker.cpp
         Source/dnfamitracker.h
+
+        # APU and emulation cores
+        Source/Blip_Buffer/Blip_Buffer.cpp
+        Source/RegisterState.cpp
+
+        Source/APU/digital-sound-antiques/emu2149.c
+        Source/APU/digital-sound-antiques/emu2413.c
+
+        Source/APU/nsfplay/xgm/devices/Sound/nes_apu.cpp
+        Source/APU/nsfplay/xgm/devices/Sound/nes_dmc.cpp
+        Source/APU/nsfplay/xgm/devices/Sound/nes_mmc5.cpp
+        Source/APU/nsfplay/xgm/devices/Sound/nes_vrc6.cpp
+
+        Source/APU/APU.cpp
+        Source/APU/SoundChip.cpp
+        Source/APU/Mixer.cpp
+        Source/APU/2A03.cpp
+        Source/APU/VRC6.cpp
+        Source/APU/VRC7.cpp
+        Source/APU/FDS.cpp
+        Source/APU/MMC5.cpp
+        Source/APU/N163.cpp
+        Source/APU/S5B.cpp
     )
 
     target_compile_features(dnfamitracker PUBLIC cxx_std_17)

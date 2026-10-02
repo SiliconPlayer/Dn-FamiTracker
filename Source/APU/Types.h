@@ -74,3 +74,5 @@ enum apu_machine_t {
 	MACHINE_NTSC, 
 	MACHINE_PAL
 };
+
+constexpr int RATE_MIN = 16;

@@ -18,9 +18,6 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#include "../stdafx.h"
-#include "../FamiTracker.h"
-#include "../Settings.h"
 #include "../Common.h"
 #include "APU.h"
 #include "N163.h"

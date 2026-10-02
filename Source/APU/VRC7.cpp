@@ -18,12 +18,10 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#include "../stdafx.h"
-#include "../FamiTracker.h"
-#include "../Settings.h"
 #include "APU.h"
 #include "VRC7.h"
 #include "../RegisterState.h"		// // //
+#include <cstring>
 
 const uint32_t CVRC7::OPLL_CLOCK = CAPU::BASE_FREQ_VRC7;	// Clock frequency
 

@@ -1,5 +1,4 @@
 #pragma once
-#include "stdafx.h"
 #include "../APU.h"
 
 class Namco163Audio

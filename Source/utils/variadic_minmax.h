@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 /// Variadic min().
 template<typename T>
 T&& vmin(T&& val)

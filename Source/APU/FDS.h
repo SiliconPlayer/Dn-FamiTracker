@@ -24,8 +24,6 @@
 #include "SoundChip.h"
 #include "ChannelLevelState.h"
 #include "APU/mesen/FdsAudio.h"
-#include "FamiTracker.h"
-#include "Settings.h"
 
 class CMixer;
 
@@ -47,7 +45,7 @@ public:
 	uint8_t GetChannelCount() const override { return 1; };					// TODO: Dynamically calculate this?
 	chan_id_t GetFirstChannelID() const override { return CHANID_FDS; };	//
 
-	int CFDS::GetModCounter() const;
+	int GetModCounter() const;
 
 	void UpdateFDSFilter(int CutoffHz);
 	void UpdateMixLevel(double v, bool UseSurveyMix = false);

@@ -63,11 +63,11 @@ public:
 	void Reset() override {}
 
 	// not called, don't care
-	bool Write(UINT32 adr, UINT32 val, UINT32 id) override {
+	bool Write(xgm::UINT32 adr, xgm::UINT32 val, xgm::UINT32 id) override {
 		return false;
 	}
 
-	bool Read(UINT32 adr, UINT32& val, UINT32 id) override {
+	bool Read(xgm::UINT32 adr, xgm::UINT32& val, xgm::UINT32 id) override {
 		val = Read((uint16_t)adr);
 		return true;
 	}

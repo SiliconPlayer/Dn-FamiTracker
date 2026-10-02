@@ -20,7 +20,6 @@
 
 #include <algorithm>		// // //
 #include <vector>
-#include "../stdafx.h"
 #include <cstdio>
 #include <memory>
 #include <cmath>
@@ -34,7 +33,6 @@
 #include "S5B.h"
 #include "SoundChip.h"
 #include "../RegisterState.h"		// // //
-#include "../SpeedDlg.h"
 
 constexpr int		CAPU::SEQUENCER_FREQUENCY	= 240;		// // //
 constexpr uint32_t	CAPU::BASE_FREQ_NTSC		= 1789773;		// 72.667

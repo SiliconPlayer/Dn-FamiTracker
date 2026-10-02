@@ -63,7 +63,7 @@
 
 */
 
-#include "../stdafx.h"
+#include <cstring>
 #include <memory>
 #include <algorithm>
 #include <cmath>
