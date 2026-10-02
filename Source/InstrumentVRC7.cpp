@@ -18,7 +18,7 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#include "stdafx.h"
+#include "Common.h"
 #include "Instrument.h"
 #include "InstrumentVRC7.h"		// // //
 #include "ModuleException.h"		// // //

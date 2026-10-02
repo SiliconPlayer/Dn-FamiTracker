@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <string_view>
+#include "Common.h"
 
 // CDocumentFile, class for reading/writing document files
 
@@ -71,7 +73,7 @@ public:
 	// // // exception
 	CModuleException *GetException() const;
 	void SetDefaultFooter(CModuleException *e) const;
-	__declspec(noreturn) void RaiseModuleException(std::string Msg) const;
+	void RaiseModuleException(std::string Msg) const;
 
 	// // // Overrides
 	virtual UINT Read(void* lpBuf, UINT nCount);

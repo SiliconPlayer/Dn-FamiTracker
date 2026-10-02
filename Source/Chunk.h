@@ -20,7 +20,7 @@
 
 #pragma once
 
-// std::vector is required by this header file
+#include "Common.h"
 #include <vector>		// // //
 
 

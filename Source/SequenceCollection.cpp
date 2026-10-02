@@ -18,7 +18,7 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#include "stdafx.h"
+#include "Common.h"
 #include <vector>
 #include <memory>
 #include "Sequence.h"

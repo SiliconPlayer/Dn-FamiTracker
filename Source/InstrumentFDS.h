@@ -20,9 +20,9 @@
 
 #pragma once
 
-
 #include <vector>
 #include <memory>
+#include "SeqInstrument.h"
 
 class CInstrumentFDS : public CSeqInstrument {
 public:

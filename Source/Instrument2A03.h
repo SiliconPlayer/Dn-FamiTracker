@@ -22,6 +22,7 @@
 #pragma once
 
 #include "FamiTrackerTypes.h"		// // //
+#include "SeqInstrument.h"
 
 class CDSample;
 

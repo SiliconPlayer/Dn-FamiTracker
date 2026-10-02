@@ -19,8 +19,7 @@
 */
 
 #include <vector>		// // //
-#include <memory>		// // //
-#include "stdafx.h"
+#include "Common.h"
 #include "APU/Types.h"
 #include "InstrumentFactory.h"		// // //
 #include "TrackerChannel.h"

@@ -20,6 +20,10 @@
 
 #pragma once
 
+#include "Common.h"
+#include "FamiTrackerTypes.h"
+#include "Chunk.h"
+
 //
 // Text chunk renderer
 //

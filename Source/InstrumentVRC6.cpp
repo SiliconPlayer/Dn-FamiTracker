@@ -19,7 +19,7 @@
 */
 
 // // // CInstrumentVRC6 is a subtype of CSeqInstrument.
-#include "stdafx.h" // CFile
+#include "Common.h"
 #include "Instrument.h"
 #include "SeqInstrument.h"
 #include "InstrumentVRC6.h"

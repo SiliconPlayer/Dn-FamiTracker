@@ -25,15 +25,26 @@
 #include <vector>
 #include <exception>
 #include <memory>
+#include <cstdio>
 
-#include "stdafx.h"
+#include "Common.h"
+
+#if defined(_AFX) && defined(BUILD_GUI)
 #include "FamiTracker.h"
 #include "Settings.h"
+inline int GetCurrentModuleErrorLevel() {
+	return (theApp.GetSettings()) ? theApp.GetSettings()->Version.iErrorLevel : MODULE_ERROR_DEFAULT;
+}
+#else
+inline int GetCurrentModuleErrorLevel() {
+	return MODULE_ERROR_DEFAULT;
+}
+#endif
 
 /*!
 	\brief An exception object raised while reading and writing FTM files.
 */
-class CModuleException : std::exception
+class CModuleException : public std::exception
 {
 public:
 	/*!	\brief Constructor of the exception object with an empty message. */
@@ -59,7 +70,7 @@ public:
 	{
 		const size_t MAX_ERROR_STRLEN = 256;
 		char buf[MAX_ERROR_STRLEN] = { };
-		_sntprintf_s(buf, MAX_ERROR_STRLEN, _TRUNCATE, fmt.c_str(), args...);
+		snprintf(buf, MAX_ERROR_STRLEN, fmt.c_str(), args...);
 		m_strError.emplace_back(new std::string(buf));
 	}
 	/*!	\brief Sets the footer string of the error message.
@@ -81,13 +92,13 @@ public:
 	template <module_error_level_t l = MODULE_ERROR_DEFAULT, typename T, typename U, typename V>
 	static T AssertRangeFmt(T Value, U Min, V Max, std::string Desc, const char *fmt)
 	{
-		if (l > theApp.GetSettings()->Version.iErrorLevel)
+		if (l > GetCurrentModuleErrorLevel())
 			return Value;
 		if (!(Value >= Min && Value <= Max)) {
 			char Format[128];
-			sprintf_s(Format, sizeof(Format), "%%s out of range: expected [%s,%s], got %s", fmt, fmt, fmt);
+			snprintf(Format, sizeof(Format), "%%s out of range: expected [%s,%s], got %s", fmt, fmt, fmt);
 			char Buffer[512];
-			sprintf_s(Buffer, sizeof(Buffer), Format, Desc.c_str(), Min, Max, Value);
+			snprintf(Buffer, sizeof(Buffer), Format, Desc.c_str(), Min, Max, Value);
 			CModuleException *e = new CModuleException();
 			e->AppendError(std::string(Buffer));
 			e->Raise();

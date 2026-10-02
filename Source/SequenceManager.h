@@ -20,6 +20,9 @@
 
 #pragma once
 
+#include <vector>
+#include <memory>
+
 class CSequenceCollection;
 
 class CSequenceManager

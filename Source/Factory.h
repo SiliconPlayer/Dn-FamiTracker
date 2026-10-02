@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include "stdafx.h" // new
+#include "Common.h"
 #include <memory>
 #include <functional>
 #include <unordered_map>

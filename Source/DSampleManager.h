@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <vector>
 #include "DSample.h"
 
 class CDSampleManager

@@ -19,7 +19,7 @@
 */
 
 
-#include "stdafx.h"
+#include "Common.h"
 #include "InstrumentFactory.h"
 
 #include "Sequence.h"

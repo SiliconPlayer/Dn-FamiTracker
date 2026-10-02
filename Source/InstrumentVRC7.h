@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "Instrument.h"
 
 class CInstrumentVRC7 : public CInstrument {
 public:

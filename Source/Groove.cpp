@@ -18,7 +18,7 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#include "stdafx.h"
+#include "Common.h"
 #include "Groove.h"
 
 CGroove::CGroove(int Speed)

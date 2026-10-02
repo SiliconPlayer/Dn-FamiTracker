@@ -23,7 +23,7 @@
 
 // CTrackerChannel
 
-#include <afxmt.h>	// For CMutex
+#include "Common.h"
 #include "APU/Types.h"		// // //
 #include "FamiTrackerTypes.h"
 

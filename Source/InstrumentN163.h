@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "SeqInstrument.h"
 
 class CInstrumentN163 : public CSeqInstrument {
 public:

@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "Common.h"
 #include "FamiTrackerTypes.h"
 
 // Channel note struct, holds the data for each row in patterns

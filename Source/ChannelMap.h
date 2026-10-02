@@ -20,6 +20,11 @@
 
 #pragma once
 
+#include "Common.h"
+#include "APU/Types.h"
+#include "Instrument.h"
+class CInstrument;
+class CTrackerChannel;
 
 // CChannelMap
 

@@ -20,7 +20,7 @@
 
 #include <vector>
 #include <memory>
-#include "stdafx.h"
+#include "Common.h"
 #include "Sequence.h"		// // //
 #include "ModuleException.h"		// // //
 #include "Instrument.h"

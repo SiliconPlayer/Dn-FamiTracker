@@ -19,7 +19,7 @@
 */
 
 // // // CInstrumentS5B is a subtype of CSeqInstrument.
-#include "stdafx.h" // CFile
+#include "Common.h"
 #include "Instrument.h"
 #include "SeqInstrument.h"
 #include "InstrumentS5B.h"

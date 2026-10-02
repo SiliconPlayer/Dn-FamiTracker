@@ -4,6 +4,37 @@ if(BUILD_LIB)
     add_library(dnfamitracker STATIC
         Source/dnfamitracker.cpp
         Source/dnfamitracker.h
+        Source/DocumentFile.cpp
+        Source/DocumentFile.h
+        Source/ModuleException.cpp
+        Source/ModuleException.h
+        Source/FTMDocument.cpp
+        Source/FTMDocument.h
+
+        # Data model
+        Source/PatternNote.cpp
+        Source/PatternData.cpp
+        Source/Instrument.cpp
+        Source/SeqInstrument.cpp
+        Source/Instrument2A03.cpp
+        Source/InstrumentFDS.cpp
+        Source/InstrumentN163.cpp
+        Source/InstrumentS5B.cpp
+        Source/InstrumentVRC6.cpp
+        Source/InstrumentVRC7.cpp
+        Source/InstrumentFactory.cpp
+        Source/InstrumentManager.cpp
+        Source/Sequence.cpp
+        Source/SequenceCollection.cpp
+        Source/SequenceManager.cpp
+        Source/SequenceParser.cpp
+        Source/DSample.cpp
+        Source/DSampleManager.cpp
+        Source/Groove.cpp
+        Source/DetuneTable.cpp
+        Source/ChannelMap.cpp
+        Source/OldSequence.cpp
+        Source/Chunk.cpp
 
         # APU and emulation cores
         Source/Blip_Buffer/Blip_Buffer.cpp

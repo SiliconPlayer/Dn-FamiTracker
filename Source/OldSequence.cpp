@@ -19,7 +19,7 @@
 */
 
 
-#include "stdafx.h"
+#include "Common.h"
 #include <vector>
 // #include "ModuleException.h"
 #include "Sequence.h"

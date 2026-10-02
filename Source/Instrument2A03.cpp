@@ -18,7 +18,7 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#include "stdafx.h"
+#include "Common.h"
 #include "ModuleException.h"		// // //
 #include "InstrumentManagerInterface.h"		// // //
 #include "Instrument.h"

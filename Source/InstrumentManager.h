@@ -23,15 +23,14 @@
 #include "InstrumentManagerInterface.h"
 #include <vector>
 #include <memory>
-#include <afxmt.h>
+#include "Common.h"
 
 class CInstrument;
 class CDSample;
 class CSequenceManager;
 class CDSampleManager;
 class CFTMComponentInterface;
-
-enum inst_type_t;
+#include "Instrument.h"
 
 /*!
 	\brief A container of FamiTracker instruments.
