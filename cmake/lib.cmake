@@ -96,6 +96,7 @@ if(BUILD_LIB)
             -Wall
             -Wextra
             -Wno-unused-parameter
+            -Wno-format-security
         )
     endif()
 
