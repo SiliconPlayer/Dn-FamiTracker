@@ -264,8 +264,8 @@ public:
 		return pos == std::string::npos ? -1 : static_cast<int>(pos);
 	}
 
-	char GetAt(int nIndex) const { return (*this)[nIndex]; }
-	void SetAt(int nIndex, char ch) { (*this)[nIndex] = ch; }
+	char GetAt(int nIndex) const { return c_str()[nIndex]; }
+	void SetAt(int nIndex, char ch) { data()[nIndex] = ch; }
 
 	void Format(const char* pszFormat, ...) {
 		va_list args;
@@ -276,7 +276,7 @@ public:
 		va_end(args_copy);
 		if (len > 0) {
 			resize(len);
-			vsnprintf(&(*this)[0], len + 1, pszFormat, args);
+			vsnprintf(data(), len + 1, pszFormat, args);
 		} else {
 			clear();
 		}
@@ -293,7 +293,7 @@ public:
 		if (len > 0) {
 			size_t oldSize = size();
 			resize(oldSize + len);
-			vsnprintf(&(*this)[oldSize], len + 1, pszFormat, args);
+			vsnprintf(data() + oldSize, len + 1, pszFormat, args);
 		}
 		va_end(args);
 	}
@@ -302,7 +302,7 @@ public:
 		if (nMinBufLength > (int)size()) {
 			resize(nMinBufLength);
 		}
-		return empty() ? const_cast<char*>("") : &(*this)[0];
+		return empty() ? const_cast<char*>("") : data();
 	}
 
 	void ReleaseBuffer(int nNewLength = -1) {
