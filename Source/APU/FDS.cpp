@@ -133,7 +133,7 @@ void CFDS::Process(uint32_t Time, Blip_Buffer& Output)
 			          m_lastWaveformLevel[0]);
 			m_lastWaveformSample[0] = samplePos;
 		}
-		m_lastWaveformLevel[0] = (float)out / 63.0f;
+		m_lastWaveformLevel[0] = (float)out / 72576.0f;
 
 		now++;
 	}

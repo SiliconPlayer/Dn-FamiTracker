@@ -140,7 +140,7 @@ void CN163::Process(uint32_t Time, Blip_Buffer& Output)
 			m_lastWaveformLevel[ch] = level;
 		};
 		for (int i = 0; i < 8; ++i) {
-			record_waveform(i, (float)m_N163._channelOutput[7 - i] / 128.0f, samplePos);
+			record_waveform(i, (float)m_N163._channelOutput[7 - i] / 256.0f, samplePos);
 		}
 
 		now++;
