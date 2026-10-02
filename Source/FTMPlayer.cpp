@@ -1013,7 +1013,7 @@ int CFTMPlayer::GetChannelDisplayState(int Channel, int32_t* pOutState, int MaxF
 		if (m_iChannelIDs[Channel] == CHANID_DPCM && pInstMan && m_pChannels[Channel]) {
 			int inst = m_pChannels[Channel]->GetInstrument();
 			int n = m_pChannels[Channel]->GetNote();
-			if (n >= 0 && inst >= 0) {
+			if (n >= 0 && inst >= 0 && inst < MAX_INSTRUMENTS) {
 				auto pInst2A03 = std::dynamic_pointer_cast<const CInstrument2A03>(pInstMan->GetInstrument(inst));
 				if (pInst2A03) {
 					int oct = GET_OCTAVE(n);
