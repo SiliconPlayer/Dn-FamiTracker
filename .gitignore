@@ -1,6 +1,7 @@
 # CMake configuration
 /cmake_user_begin.cmake
 /cmake_user_end.cmake
+build/
 
 # Editors
 *.sublime-*
