@@ -58,6 +58,7 @@ public:
 	int Render(float* pOutStereo, int NumFrames);
 	int Render(int16_t* pOutStereo, int NumFrames);
 	void Seek(double Seconds);
+	void SeekFast(double Seconds);
 	void Reset();
 
 	// Channel inspection & muting

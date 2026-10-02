@@ -821,6 +821,183 @@ void CFTMPlayer::Seek(double Seconds)
 	m_audioFifoReadPos = 0;
 }
 
+void CFTMPlayer::SeekFast(double Seconds)
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	if (!m_pDocument || !m_pAPU)
+		return;
+
+	uint64_t targetTicks = Seconds <= 0.0 ? 0 : static_cast<uint64_t>(Seconds * m_iFrameRate);
+	const int track = m_iPlayTrack;
+	const unsigned int frameCount = m_pDocument->GetFrameCount(track);
+	const unsigned int patternLen = m_pDocument->GetPatternLength(track);
+	if (frameCount == 0 || patternLen == 0)
+		return;
+
+	// Starting tempo state, mirroring SelectSubtune.
+	int speed = m_pDocument->GetSongSpeed(track);
+	int tempo = m_pDocument->GetSongTempo(track);
+	int grooveIndex = -1;
+	int groovePos = 0;
+	if (m_pDocument->GetSongGroove(track)) {
+		grooveIndex = speed;
+		if (grooveIndex < MAX_GROOVE && m_pDocument->GetGroove(grooveIndex) != nullptr) {
+			const CGroove* pGroove = m_pDocument->GetGroove(grooveIndex);
+			if (pGroove->GetSize() > 0)
+				speed = pGroove->GetEntry(0);
+			groovePos = 1;
+		}
+	}
+	if (!speed)
+		speed = 1;
+
+	// Walk rows without emulating audio until the target tick falls inside
+	// the current row. Effect memory and in-flight chip state are left
+	// behind on purpose: the landing row retriggers and playback resumes
+	// from there, which keeps seeks instant on long songs.
+	unsigned int frame = 0;
+	unsigned int row = 0;
+	uint64_t tick = 0;
+	bool halted = false;
+	bool looped = false;
+	for (int guard = 0; guard < 65536 && tick < targetTicks && !halted; ++guard) {
+		if (grooveIndex != -1 && m_pDocument->GetGroove(grooveIndex) != nullptr) {
+			const CGroove* pGroove = m_pDocument->GetGroove(grooveIndex);
+			if (pGroove->GetSize() > 0) {
+				speed = pGroove->GetEntry(groovePos % pGroove->GetSize());
+				groovePos = (groovePos + 1) % pGroove->GetSize();
+			}
+		}
+		if (!speed)
+			speed = 1;
+
+		int jumpTo = -1;
+		int skipTo = -1;
+		for (int ch = 0; ch < m_iActiveChannels; ++ch) {
+			stChanNote note;
+			m_pDocument->GetNoteData(track, frame, (unsigned int)ch, row, &note);
+			const int effCols = m_pDocument->GetEffColumns(track, ch) + 1;
+			for (int c = 0; c < effCols; ++c) {
+				switch (note.EffNumber[c]) {
+				case EF_SPEED: {
+					unsigned char param = note.EffParam[c];
+					if (!param)
+						++param;
+					if (tempo && param >= (unsigned char)m_iSpeedSplitPoint)
+						tempo = param;
+					else {
+						speed = param;
+						grooveIndex = -1;
+					}
+					break;
+				}
+				case EF_GROOVE: {
+					const int idx = note.EffParam[c] % MAX_GROOVE;
+					if (m_pDocument->GetGroove(idx) != nullptr) {
+						const CGroove* pGroove = m_pDocument->GetGroove(idx);
+						grooveIndex = idx;
+						if (pGroove->GetSize() > 0)
+							speed = pGroove->GetEntry(0);
+						groovePos = 1;
+					}
+					break;
+				}
+				case EF_JUMP:
+					jumpTo = note.EffParam[c];
+					break;
+				case EF_SKIP:
+					skipTo = note.EffParam[c];
+					break;
+				case EF_HALT:
+					halted = true;
+					break;
+				default:
+					break;
+				}
+			}
+		}
+		if (!speed)
+			speed = 1;
+
+		// Row length in ticks, mirroring the tempo accumulator math.
+		uint64_t rowTicks;
+		if (tempo) {
+			const int dec = (tempo * 24) / speed;
+			const int rem = (tempo * 24) % speed;
+			if (dec <= 0)
+				break;  // degenerate tempo: the player never leaves this row
+			const uint64_t span = 60ULL * (uint64_t)m_iFrameRate;
+			rowTicks = (span - (uint64_t)rem + (uint64_t)dec - 1) / (uint64_t)dec;
+			if (rowTicks == 0)
+				rowTicks = 1;
+		}
+		else {
+			rowTicks = (uint64_t)speed;
+		}
+
+		if (tick + rowTicks > targetTicks)
+			break;
+		tick += rowTicks;
+
+		if (jumpTo > -1) {
+			frame = std::min((unsigned int)jumpTo, frameCount - 1);
+			row = 0;
+			looped = true;
+		}
+		else if (skipTo > -1) {
+			if (++frame >= frameCount)
+				frame = 0;
+			row = std::min((unsigned int)skipTo, patternLen - 1);
+		}
+		else if (++row >= patternLen) {
+			row = 0;
+			if (++frame >= frameCount) {
+				frame = 0;
+				looped = true;
+			}
+		}
+	}
+
+	// Land on the containing row with fresh channel state; the next tick
+	// retriggers the row, so playback resumes from the landing point.
+	for (int i = 0; i < m_iActiveChannels; ++i) {
+		if (m_pChannels[i])
+			m_pChannels[i]->ResetChannel();
+	}
+	m_pAPU->ClearSample();
+
+	m_iPlayFrame = (int)frame;
+	m_iPlayRow = (int)row;
+	m_iTotalTicks = targetTicks;
+	m_iSpeed = speed;
+	m_iTempo = tempo;
+	SetupSpeed();
+	m_iGrooveIndex = grooveIndex;
+	m_iGroovePosition = groovePos;
+	m_iTempoAccum = 0;
+	m_iRowTickCount = 0;
+	m_iStepRows = 0;
+	m_bUpdateRow = false;
+	m_iJumpToPattern = -1;
+	m_iSkipToRow = -1;
+	m_bDoHalt = false;
+	m_bHaltRequest = false;
+	m_bLoopReached = looped;
+	if (halted) {
+		m_bPlaying = false;
+		m_bFinished = true;
+	}
+	else {
+		m_bPlaying = true;
+		m_bFinished = false;
+	}
+	memset(m_bVisitedFrames, 0, sizeof(m_bVisitedFrames));
+	m_bVisitedFrames[frame % MAX_FRAMES] = true;
+
+	m_audioFifo.clear();
+	m_audioFifoReadPos = 0;
+}
+
 bool CFTMPlayer::IsPlaying() const
 {
 	std::lock_guard<std::recursive_mutex> lock(m_mutex);
