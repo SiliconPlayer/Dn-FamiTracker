@@ -95,7 +95,7 @@ bool CFTMPlayer::LoadDocument(const char* lpszPathName)
 		return false;
 	}
 	m_pOwnedDocument = std::move(pDoc);
-	return AssignDocument(m_pOwnedDocument.get(), false);
+	return AssignDocument(m_pOwnedDocument.get(), true);
 }
 
 bool CFTMPlayer::LoadDocument(const void* pData, size_t nSize)
@@ -105,7 +105,7 @@ bool CFTMPlayer::LoadDocument(const void* pData, size_t nSize)
 		return false;
 	}
 	m_pOwnedDocument = std::move(pDoc);
-	return AssignDocument(m_pOwnedDocument.get(), false);
+	return AssignDocument(m_pOwnedDocument.get(), true);
 }
 
 bool CFTMPlayer::AssignDocument(CFTMDocument* pDoc, bool bTakeOwnership)
