@@ -125,6 +125,8 @@ void CS5B::ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) cons
 		float mid = (minVal + maxVal) * 0.5f;
 		for (uint32_t i = 0; i < Count; ++i)
 			pBuffer[i] -= mid;
+	} else {
+		std::fill(pBuffer, pBuffer + Count, 0.0f);
 	}
 }
 
