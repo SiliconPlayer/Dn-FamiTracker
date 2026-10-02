@@ -191,8 +191,15 @@ bool CFTMPlayer::SetupSound(int SampleRate, machine_t Machine)
 
 		m_pAPU->Write(0x4015, 0x0F);
 		m_pAPU->Write(0x4017, 0x00);
+		if (m_pDocument->GetExpansionChip() & SNDCHIP_FDS) {
+			m_pAPU->Write(0x4023, 0x02);
+			m_pAPU->Write(0x4023, 0x83);
+		}
+		if (m_pDocument->GetExpansionChip() & SNDCHIP_N163)
+			m_pAPU->Write(0xE7FF, 0x00);
 		if (m_pDocument->GetExpansionChip() & SNDCHIP_MMC5)
 			m_pAPU->Write(0x5015, 0x03);
+		m_pAPU->ClearSample();
 
 		SetupVibratoTable(m_pDocument->GetVibratoStyle());
 		SetupNoteTables();
@@ -421,8 +428,15 @@ void CFTMPlayer::Reset()
 		m_pAPU->Reset();
 		m_pAPU->Write(0x4015, 0x0F);
 		m_pAPU->Write(0x4017, 0x00);
+		if (m_pDocument && (m_pDocument->GetExpansionChip() & SNDCHIP_FDS)) {
+			m_pAPU->Write(0x4023, 0x02);
+			m_pAPU->Write(0x4023, 0x83);
+		}
+		if (m_pDocument && (m_pDocument->GetExpansionChip() & SNDCHIP_N163))
+			m_pAPU->Write(0xE7FF, 0x00);
 		if (m_pDocument && (m_pDocument->GetExpansionChip() & SNDCHIP_MMC5))
 			m_pAPU->Write(0x5015, 0x03);
+		m_pAPU->ClearSample();
 	}
 
 	for (int i = 0; i < m_iActiveChannels; ++i) {
@@ -527,8 +541,34 @@ void CFTMPlayer::ReadPatternRow()
 		m_pDocument->GetNoteData(m_iPlayTrack, m_iPlayFrame, i, m_iPlayRow, &note);
 
 		int effCols = m_pDocument->GetEffColumns(m_iPlayTrack, i) + 1;
-		if (m_pChannels[i] && !m_bChannelMuted[i]) {
-			m_pChannels[i]->PlayNote(&note, effCols);
+		if (m_pChannels[i]) {
+			if (!m_bChannelMuted[i]) {
+				m_pChannels[i]->PlayNote(&note, effCols);
+			} else {
+				static const int PASS_EFFECTS[] = {
+					EF_HALT, EF_JUMP, EF_SPEED, EF_SKIP, EF_GROOVE,
+					EF_VRC7_PORT, EF_VRC7_WRITE,
+					EF_N163_WAVE_BUFFER,
+					EF_SUNSOFT_ENV_HI, EF_SUNSOFT_ENV_LO, EF_SUNSOFT_ENV_TYPE, EF_SUNSOFT_NOISE
+				};
+				note.Note = HALT;
+				note.Octave = 0;
+				note.Instrument = 0;
+
+				for (int j = 0; j < effCols; ++j) {
+					bool pass = false;
+					for (int pass_eff : PASS_EFFECTS) {
+						if (note.EffNumber[j] == pass_eff) {
+							pass = true;
+							break;
+						}
+					}
+					if (!pass) {
+						note.EffNumber[j] = EF_NONE;
+					}
+				}
+				m_pChannels[i]->PlayNote(&note, effCols);
+			}
 		}
 	}
 
@@ -817,6 +857,11 @@ void CFTMPlayer::SetChannelMuted(int Channel, bool Muted)
 {
 	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (Channel >= 0 && Channel < m_iActiveChannels) {
+		if (Muted && !m_bChannelMuted[Channel] && m_pChannels[Channel]) {
+			stChanNote note {};
+			note.Note = HALT;
+			m_pChannels[Channel]->PlayNote(&note, 0);
+		}
 		m_bChannelMuted[Channel] = Muted;
 	}
 }

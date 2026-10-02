@@ -137,6 +137,7 @@ CFTMDocument::CFTMDocument() :
 	m_bFileLoaded(false),
 	m_iFileVersion(0),
 	m_bFileDnModule(false),
+	m_bAdjustFDSArpeggio(false),
 	m_iTrackCount(0),
 	m_iChannelsAvailable(5),
 	m_pInstrumentManager(new CInstrumentManager(this)),
@@ -202,6 +203,7 @@ void CFTMDocument::DeleteContents()
 	m_bFileLoaded = false;
 	m_iFileVersion = 0;
 	m_bFileDnModule = false;
+	m_bAdjustFDSArpeggio = false;
 }
 
 void CFTMDocument::CreateEmpty()
@@ -347,6 +349,88 @@ void CFTMDocument::GetNoteData(unsigned int Track, unsigned int Frame, unsigned 
 	if (Note) {
 		*Data = *Note;
 	}
+}
+
+int CFTMDocument::GetChannelType(int Channel) const
+{
+	if (Channel < 0 || (unsigned int)Channel >= m_iChannelsAvailable)
+		return -1;
+
+	if (Channel < 5)
+		return CHANID_SQUARE1 + Channel;
+
+	int expChan = Channel - 5;
+	if (m_iExpansionChip & SNDCHIP_VRC6)
+		return CHANID_VRC6_PULSE1 + expChan;
+	if (m_iExpansionChip & SNDCHIP_VRC7)
+		return CHANID_VRC7_CH1 + expChan;
+	if (m_iExpansionChip & SNDCHIP_FDS)
+		return CHANID_FDS;
+	if (m_iExpansionChip & SNDCHIP_MMC5)
+		return CHANID_MMC5_SQUARE1 + expChan;
+	if (m_iExpansionChip & SNDCHIP_N163)
+		return CHANID_N163_CH1 + expChan;
+	if (m_iExpansionChip & SNDCHIP_S5B)
+		return CHANID_S5B_CH1 + expChan;
+
+	return -1;
+}
+
+int CFTMDocument::GetChipType(int Channel) const
+{
+	if (Channel < 0 || (unsigned int)Channel >= m_iChannelsAvailable)
+		return SNDCHIP_NONE;
+
+	if (Channel < 5)
+		return SNDCHIP_NONE;
+
+	if (m_iExpansionChip & SNDCHIP_VRC6)
+		return SNDCHIP_VRC6;
+	if (m_iExpansionChip & SNDCHIP_VRC7)
+		return SNDCHIP_VRC7;
+	if (m_iExpansionChip & SNDCHIP_FDS)
+		return SNDCHIP_FDS;
+	if (m_iExpansionChip & SNDCHIP_MMC5)
+		return SNDCHIP_MMC5;
+	if (m_iExpansionChip & SNDCHIP_N163)
+		return SNDCHIP_N163;
+	if (m_iExpansionChip & SNDCHIP_S5B)
+		return SNDCHIP_S5B;
+
+	return SNDCHIP_NONE;
+}
+
+int CFTMDocument::GetChannelIndex(int ChannelId) const
+{
+	if (ChannelId >= CHANID_SQUARE1 && ChannelId <= CHANID_DPCM)
+		return ChannelId;
+
+	if (m_iExpansionChip & SNDCHIP_VRC6) {
+		if (ChannelId >= CHANID_VRC6_PULSE1 && ChannelId <= CHANID_VRC6_SAWTOOTH)
+			return 5 + (ChannelId - CHANID_VRC6_PULSE1);
+	}
+	else if (m_iExpansionChip & SNDCHIP_VRC7) {
+		if (ChannelId >= CHANID_VRC7_CH1 && ChannelId <= CHANID_VRC7_CH6)
+			return 5 + (ChannelId - CHANID_VRC7_CH1);
+	}
+	else if (m_iExpansionChip & SNDCHIP_FDS) {
+		if (ChannelId == CHANID_FDS)
+			return 5;
+	}
+	else if (m_iExpansionChip & SNDCHIP_MMC5) {
+		if (ChannelId >= CHANID_MMC5_SQUARE1 && ChannelId <= CHANID_MMC5_SQUARE2)
+			return 5 + (ChannelId - CHANID_MMC5_SQUARE1);
+	}
+	else if (m_iExpansionChip & SNDCHIP_N163) {
+		if (ChannelId >= CHANID_N163_CH1 && ChannelId < CHANID_N163_CH1 + static_cast<int>(m_iNamcoChannels))
+			return 5 + (ChannelId - CHANID_N163_CH1);
+	}
+	else if (m_iExpansionChip & SNDCHIP_S5B) {
+		if (ChannelId >= CHANID_S5B_CH1 && ChannelId <= CHANID_S5B_CH3)
+			return 5 + (ChannelId - CHANID_S5B_CH1);
+	}
+
+	return -1;
 }
 
 bool CFTMDocument::LoadDocument(const char* lpszPathName)
@@ -519,6 +603,43 @@ bool CFTMDocument::OpenDocumentNew(CDocumentFile &DocumentFile)
 
 	if (m_iFileVersion <= 0x0201)
 		ReorderSequences();
+
+	if (m_bAdjustFDSArpeggio && (m_iExpansionChip & SNDCHIP_FDS)) {
+		int Channel = GetChannelIndex(CHANID_FDS);
+		if (Channel != -1) {
+			for (unsigned int t = 0; t < m_iTrackCount; ++t) {
+				CPatternData *pTrack = GetTrack(t);
+				if (!pTrack) continue;
+				for (int p = 0; p < MAX_PATTERN; ++p) {
+					for (int r = 0; r < MAX_PATTERN_LENGTH; ++r) {
+						stChanNote *pNote = pTrack->GetPatternData(Channel, p, r);
+						if (pNote && pNote->Note >= NOTE_C && pNote->Note <= NOTE_B) {
+							int Trsp = MIDI_NOTE(pNote->Octave, pNote->Note) + NOTE_RANGE * 2;
+							Trsp = Trsp >= NOTE_COUNT ? NOTE_COUNT - 1 : Trsp;
+							pNote->Note = GET_NOTE(Trsp);
+							pNote->Octave = GET_OCTAVE(Trsp);
+						}
+					}
+				}
+			}
+		}
+		if (m_pInstrumentManager) {
+			for (unsigned int i = 0; i < CInstrumentManager::MAX_INSTRUMENTS; ++i) {
+				if (m_pInstrumentManager->GetInstrumentType(i) == INST_FDS) {
+					auto pInst = std::static_pointer_cast<CSeqInstrument>(m_pInstrumentManager->GetInstrument(i));
+					if (pInst) {
+						CSequence *pSeq = pInst->GetSequence(SEQ_ARPEGGIO);
+						if (pSeq != nullptr && pSeq->GetItemCount() > 0 && pSeq->GetSetting() == SETTING_ARP_FIXED) {
+							for (unsigned int j = 0; j < pSeq->GetItemCount(); ++j) {
+								int Trsp = pSeq->GetItem(j) + NOTE_RANGE * 2;
+								pSeq->SetItem(j, Trsp >= NOTE_COUNT ? NOTE_COUNT - 1 : Trsp);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 
 	return true;
 }
@@ -1037,6 +1158,8 @@ void CFTMDocument::ReadBlock_Frames(CDocumentFile *pDocFile, const int Version)
 
 void CFTMDocument::ReadBlock_Patterns(CDocumentFile *pDocFile, const int Version)
 {
+	m_bAdjustFDSArpeggio = (Version < 5);
+
 	if (Version == 1) {
 		int PatternLen = AssertRange(pDocFile->GetBlockInt(), 0, MAX_PATTERN_LENGTH, "Pattern data count");
 		AllocateTrack(0);
@@ -1105,6 +1228,56 @@ void CFTMDocument::ReadBlock_Patterns(CDocumentFile *pDocFile, const int Version
 				catch (CModuleException *e) {
 					e->AppendError("At effect column %d,", n + 1);
 					throw;
+				}
+
+				if (m_iFileVersion == 0x0200) {
+					if (Note->EffNumber[0] == EF_SPEED && Note->EffParam[0] < 20)
+						Note->EffParam[0]++;
+
+					if (Note->Vol == 0)
+						Note->Vol = MAX_VOLUME;
+					else {
+						Note->Vol--;
+						Note->Vol &= 0x0F;
+					}
+
+					if (Note->Note == 0)
+						Note->Instrument = CInstrumentManager::MAX_INSTRUMENTS;
+				}
+
+				if (ExpansionEnabled(SNDCHIP_N163) && GetChipType(Channel) == SNDCHIP_N163) {
+					for (int n = 0; n < MAX_EFFECT_COLUMNS; ++n)
+						if (Note->EffNumber[n] == EF_SAMPLE_OFFSET)
+							Note->EffNumber[n] = EF_N163_WAVE_BUFFER;
+				}
+
+				if (Version == 3) {
+					if (ExpansionEnabled(SNDCHIP_VRC7) && Channel > 4) {
+						for (int n = 0; n < MAX_EFFECT_COLUMNS; ++n) {
+							switch (Note->EffNumber[n]) {
+							case EF_PORTA_DOWN:
+								Note->EffNumber[n] = EF_PORTA_UP;
+								break;
+							case EF_PORTA_UP:
+								Note->EffNumber[n] = EF_PORTA_DOWN;
+								break;
+							default:
+								break;
+							}
+						}
+					}
+					else if (ExpansionEnabled(SNDCHIP_FDS) && GetChannelType(Channel) == CHANID_FDS) {
+						for (int n = 0; n < MAX_EFFECT_COLUMNS; ++n) {
+							switch (Note->EffNumber[n]) {
+							case EF_PITCH:
+								if (Note->EffParam[n] != 0x80)
+									Note->EffParam[n] = (0x100 - Note->EffParam[n]) & 0xFF;
+								break;
+							default:
+								break;
+							}
+						}
+					}
 				}
 
 				if (m_iFileVersion < 0x450 || m_bFileDnModule) {

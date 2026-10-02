@@ -87,6 +87,10 @@ public:
 	const char* GetSongCopyright() const { return m_strCopyright; }
 	const CString& GetSongComment() const { return m_strComment; }
 
+	int GetChannelType(int Channel) const;
+	int GetChipType(int Channel) const;
+	int GetChannelIndex(int ChannelId) const;
+
 	// Per-track helpers
 	int GetPatternLength(int Track) const;
 	int GetFrameCount(int Track) const;
@@ -193,6 +197,7 @@ private:
 	bool			m_bFileLoaded;
 	unsigned int	m_iFileVersion;
 	bool			m_bFileDnModule;
+	bool			m_bAdjustFDSArpeggio;
 
 	// Document data
 	CPatternData	*m_pTracks[MAX_TRACKS];

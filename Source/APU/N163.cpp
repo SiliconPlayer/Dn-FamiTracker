@@ -46,13 +46,14 @@ void CN163::Reset()
 	m_iTime = 0;
 	m_SynthN163.clear();
 	m_BlipN163.clear();
+	m_lowPassState = 0.0f;
 }
 
 void CN163::UpdateFilter(blip_eq_t eq)
 {
 	m_BlipN163.set_sample_rate(eq.sample_rate);
 	m_SynthN163.treble_eq(eq);
-	m_BlipN163.bass_freq(0);
+	m_BlipN163.bass_freq(16);
 	m_CutoffHz = 12000;
 	RecomputeN163Filter();
 }

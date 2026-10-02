@@ -40,6 +40,7 @@ void CFDS::Reset()
 
 	m_SynthFDS.clear();
 	m_BlipFDS.clear();
+	m_lowPassState = 0.0f;
 }
 
 void CFDS::UpdateFilter(blip_eq_t eq)
@@ -68,7 +69,7 @@ void CFDS::UpdateFilter(blip_eq_t eq)
 	// The output is lowpassed and fed directly to the global Blip_Buffer.
 	// The global Blip_Buffer performs bass removal but not treble removal.
 	// So BlipFDS should skip bass removal.
-	m_BlipFDS.bass_freq(0);
+	m_BlipFDS.bass_freq(16);
 
 	// Default cutoff frequency, will be overriden when UpdateFDSFilter() is called.
 	m_CutoffHz = 2000;
