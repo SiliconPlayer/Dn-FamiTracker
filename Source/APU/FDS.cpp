@@ -288,11 +288,7 @@ void CFDS::ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) cons
 		if (pBuffer[i] < minVal) minVal = pBuffer[i];
 		if (pBuffer[i] > maxVal) maxVal = pBuffer[i];
 	}
-	if (maxVal > minVal) {
-		float mid = (minVal + maxVal) * 0.5f;
-		for (uint32_t i = 0; i < Count; ++i)
-			pBuffer[i] -= mid;
-	} else {
+	if (maxVal == minVal) {
 		std::fill(pBuffer, pBuffer + Count, 0.0f);
 	}
 }
