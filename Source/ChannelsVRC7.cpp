@@ -20,7 +20,7 @@
 
 // This file handles playing of VRC7 channels
 
-#include "stdafx.h"
+#include "Common.h"
 #include "FamiTrackerTypes.h"		// // //
 #include "APU/Types.h"		// // //
 #include "Instrument.h"		// // //

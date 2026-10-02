@@ -20,7 +20,7 @@
 
 // MMC5 file
 
-#include "stdafx.h"
+#include "Common.h"
 #include "FamiTrackerTypes.h"		// // //
 #include "APU/Types.h"		// // //
 #include "Instrument.h"		// // //

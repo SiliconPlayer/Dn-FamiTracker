@@ -18,23 +18,20 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#if defined(BUILD_GUI) && defined(_AFX)
-#include "stdafx.h"
-#else
+#pragma once
+
 #include "Common.h"
-#endif
-#include "Sequence.h"
-#include "ChannelHandlerInterface.h"
-#include "SeqInstHandlerSawtooth.h"
+#include <cstdint>
 
-void CSeqInstHandlerSawtooth::TriggerInstrument()
-{
-	CSeqInstHandler::TriggerInstrument();
-	m_bIgnoreDuty = m_pSequence[SEQ_VOLUME] != nullptr &&
-					m_pSequence[SEQ_VOLUME]->GetSetting() == SETTING_VOL_64_STEPS;
-}
+class stChanNote;
+class CFTMComponentInterface;
 
-bool CSeqInstHandlerSawtooth::IsDutyIgnored() const
-{
-	return m_bIgnoreDuty;
-}
+class ISoundGen {
+public:
+	virtual ~ISoundGen() = default;
+	virtual void EvaluateGlobalEffects(stChanNote *NoteData, int EffColumns) = 0;
+	virtual CFTMComponentInterface *GetDocumentInterface() const = 0;
+	virtual void AddCyclesUnlessEndOfFrame(int Count) = 0;
+	virtual void WriteRegister(uint16_t Reg, uint8_t Value) {}
+	virtual void RegisterKeyState(int Channel, int Note) {}
+};

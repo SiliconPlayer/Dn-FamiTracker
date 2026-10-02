@@ -33,6 +33,7 @@
 #include "Common.h"
 #include "FamiTrackerTypes.h"
 #include "ChannelState.h"		// // //
+#include "SoundGenInterface.h"
 
 #include <atomic>
 #include <cstdint>
@@ -107,7 +108,7 @@ class CRegisterState;		// // //
 
 using FairMutex = yamc::fair::mutex;
 
-class CSoundGen : IAudioCallback
+class CSoundGen : public ISoundGen, public IAudioCallback
 {
 public:
 	CSoundGen();

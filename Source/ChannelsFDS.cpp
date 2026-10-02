@@ -20,7 +20,7 @@
 
 // Famicom disk sound
 
-#include "stdafx.h"
+#include "Common.h"
 #include "FamiTrackerTypes.h"		// // //
 #include "APU/Types.h"		// // //
 #include "Instrument.h"
@@ -29,8 +29,10 @@
 #include "InstHandler.h"		// // //
 #include "SeqInstHandler.h"		// // //
 #include "SeqInstHandlerFDS.h"		// // //
+#if defined(BUILD_GUI) && defined(_AFX)
 #include "FamiTracker.h"		// // //
 #include "Settings.h"		// // //
+#endif
 
 CChannelHandlerFDS::CChannelHandlerFDS() : 
 	FrequencyChannelHandler(0xFFF, 32)
@@ -132,8 +134,12 @@ void CChannelHandlerFDS::HandleRelease()
 
 int CChannelHandlerFDS::CalculateVolume() const		// // //
 {
+#if defined(BUILD_GUI) && defined(_AFX)
 	if (!theApp.GetSettings()->General.bFDSOldVolume)		// // // match NSF setting
 		return LimitVolume(((m_iInstVolume + 1) * ((m_iVolume >> VOL_COLUMN_SHIFT) + 1) - 1) / 16 - GetTremolo());
+#else
+	return LimitVolume(((m_iInstVolume + 1) * ((m_iVolume >> VOL_COLUMN_SHIFT) + 1) - 1) / 16 - GetTremolo());
+#endif
 	return CChannelHandler::CalculateVolume();
 }
 

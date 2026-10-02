@@ -69,9 +69,11 @@ public:
 	unsigned int GetTrackCount() const { return m_iTrackCount; }
 	unsigned int GetChannelCount() const { return m_iChannelsAvailable; }
 	unsigned char GetExpansionChip() const { return m_iExpansionChip; }
+	bool ExpansionEnabled(int Chip) const { return (m_iExpansionChip & Chip) == Chip; }
 	machine_t GetMachine() const { return m_iMachine; }
 	unsigned int GetEngineSpeed() const { return m_iEngineSpeed; }
 	int GetFrameRate() const { return m_iEngineSpeed ? m_iEngineSpeed : (m_iMachine == NTSC ? 60 : 50); }
+	unsigned int GetSpeedSplitPoint() const { return m_iSpeedSplitPoint; }
 	vibrato_t GetVibratoStyle() const { return m_iVibratoStyle; }
 	bool GetLinearPitch() const { return m_bLinearPitch; }
 	unsigned int GetNamcoChannels() const { return m_iNamcoChannels; }

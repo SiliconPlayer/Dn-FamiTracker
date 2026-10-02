@@ -89,7 +89,7 @@ CMixer::CMixer(CAPU* Parent)
 	memset(m_fChannelLevels, 0, sizeof(float) * CHANNELS);
 	memset(m_iChanLevelFallOff, 0, sizeof(uint32_t) * CHANNELS);
 
-	for (auto i : m_ChipLevels)
+	for (auto &i : m_ChipLevels)
 		i = 1.0;
 
 	m_iExternalChip = 0;

@@ -18,8 +18,7 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
-#include "stdafx.h"
-#include "FamiTracker.h"
+#include "Common.h"
 #include "FamiTrackerTypes.h"		// // //
 #include "APU/Types.h"		// // //
 #include "Instrument.h"		// // //

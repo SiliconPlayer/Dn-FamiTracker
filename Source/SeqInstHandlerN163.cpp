@@ -18,7 +18,11 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
+#if defined(BUILD_GUI) && defined(_AFX)
 #include "stdafx.h"
+#else
+#include "Common.h"
+#endif
 #include "Instrument.h"
 #include "SeqInstrument.h"
 #include "InstrumentN163.h"

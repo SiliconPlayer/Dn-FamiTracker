@@ -10,6 +10,8 @@ if(BUILD_LIB)
         Source/ModuleException.h
         Source/FTMDocument.cpp
         Source/FTMDocument.h
+        Source/FTMPlayer.cpp
+        Source/FTMPlayer.h
 
         # Data model
         Source/PatternNote.cpp
@@ -35,6 +37,25 @@ if(BUILD_LIB)
         Source/ChannelMap.cpp
         Source/OldSequence.cpp
         Source/Chunk.cpp
+
+        # Channels and playback handlers
+        Source/ChannelHandler.cpp
+        Source/ChannelFactory.cpp
+        Source/ChannelState.cpp
+        Source/InstHandlerDPCM.cpp
+        Source/InstHandlerVRC7.cpp
+        Source/SeqInstHandler.cpp
+        Source/SeqInstHandlerFDS.cpp
+        Source/SeqInstHandlerN163.cpp
+        Source/SeqInstHandlerS5B.cpp
+        Source/SeqInstHandlerSawtooth.cpp
+        Source/Channels2A03.cpp
+        Source/ChannelsVRC6.cpp
+        Source/ChannelsVRC7.cpp
+        Source/ChannelsFDS.cpp
+        Source/ChannelsMMC5.cpp
+        Source/ChannelsN163.cpp
+        Source/ChannelsS5B.cpp
 
         # APU and emulation cores
         Source/Blip_Buffer/Blip_Buffer.cpp

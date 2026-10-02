@@ -20,7 +20,7 @@
 
 // This file handles playing of VRC6 channels
 
-#include "stdafx.h"
+#include "Common.h"
 #include "FamiTrackerTypes.h"		// // //
 #include "APU/Types.h"		// // //
 #include "Instrument.h"		// // //
@@ -29,8 +29,10 @@
 #include "InstHandler.h"		// // //
 #include "SeqInstHandler.h"		// // //
 #include "SeqInstHandlerSawtooth.h"		// // //
+#if defined(BUILD_GUI) && defined(_AFX)
 #include "FamiTracker.h"		// // //
 #include "Settings.h"		// // //
+#endif
 
 CChannelHandlerVRC6::CChannelHandlerVRC6(int MaxPeriod, int MaxVolume) :		// // //
 	CChannelHandler(MaxPeriod, MaxVolume)
@@ -191,9 +193,13 @@ int CVRC6Sawtooth::CalculateVolume() const		// // //
 		_64_step = pHandler->IsDutyIgnored();
 
 	if (_64_step) {
+#if defined(BUILD_GUI) && defined(_AFX)
 		if (!theApp.GetSettings()->General.bFDSOldVolume)		// // // match NSF setting
 			return LimitVolume(((m_iInstVolume + 1) * ((m_iVolume >> VOL_COLUMN_SHIFT) + 1) - 1) / 16 - GetTremolo());
 		return CChannelHandler::CalculateVolume();
+#else
+		return LimitVolume(((m_iInstVolume + 1) * ((m_iVolume >> VOL_COLUMN_SHIFT) + 1) - 1) / 16 - GetTremolo());
+#endif
 	}
 
 	return (CChannelHandler::CalculateVolume() << 1) | ((m_iDutyPeriod & 0x01) << 5);

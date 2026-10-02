@@ -19,6 +19,7 @@
 */
 
 #include <memory>
+#include <cstring>
 #include "ChannelState.h"
 
 stChannelState::stChannelState() :

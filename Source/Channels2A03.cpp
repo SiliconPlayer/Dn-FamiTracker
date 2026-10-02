@@ -20,8 +20,7 @@
 
 // This file handles playing of 2A03 channels
 
-#include "stdafx.h"
-#include "FamiTracker.h"
+#include "Common.h"
 #include "FamiTrackerTypes.h"		// // //
 #include "APU/Types.h"		// // //
 #include "APU/APU.h"		// // // for DPCM
@@ -29,7 +28,10 @@
 #include "Instrument.h"
 #include "ChannelHandler.h"
 #include "Channels2A03.h"
+#if defined(BUILD_GUI) && defined(_AFX)
+#include "FamiTracker.h"
 #include "Settings.h"
+#endif
 #include "InstHandler.h"		// // //
 #include "SeqInstHandler.h"		// // //
 #include "InstHandlerDPCM.h"		// // //
@@ -747,9 +749,13 @@ void CDPCMChan::RefreshChannel()
 		// Cut sample
 		WriteRegister(0x4015, 0x0F);
 
+#if defined(BUILD_GUI) && defined(_AFX)
 		if (!theApp.GetSettings()->General.bNoDPCMReset || theApp.IsPlaying()) {
 			WriteRegister(0x4011, 0);	// regain full volume for TN
 		}
+#else
+		WriteRegister(0x4011, 0);	// regain full volume for TN
+#endif
 
 		mEnabled = false;		// don't write to this channel anymore
 	}

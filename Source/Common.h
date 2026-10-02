@@ -212,6 +212,8 @@ public:
 	void Empty() { clear(); }
 
 	void AppendChar(char ch) { push_back(ch); }
+	void Append(const char* s) { if (s) append(s); }
+	void Append(const std::string& s) { append(s); }
 
 	operator const char*() const { return c_str(); }
 
@@ -277,6 +279,21 @@ public:
 			vsnprintf(&(*this)[0], len + 1, pszFormat, args);
 		} else {
 			clear();
+		}
+		va_end(args);
+	}
+
+	void AppendFormat(const char* pszFormat, ...) {
+		va_list args;
+		va_start(args, pszFormat);
+		va_list args_copy;
+		va_copy(args_copy, args);
+		int len = vsnprintf(nullptr, 0, pszFormat, args_copy);
+		va_end(args_copy);
+		if (len > 0) {
+			size_t oldSize = size();
+			resize(oldSize + len);
+			vsnprintf(&(*this)[oldSize], len + 1, pszFormat, args);
 		}
 		va_end(args);
 	}

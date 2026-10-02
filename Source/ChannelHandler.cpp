@@ -23,8 +23,7 @@
 // translating notes to channel register writes.
 //
 
-#include "stdafx.h"
-#include "FamiTracker.h"
+#include "Common.h"
 #include "FamiTrackerTypes.h"		// // //
 #include "ChannelState.h"		// // //
 #include "FTMComponentInterface.h"
@@ -32,8 +31,11 @@
 #include "InstrumentManager.h"
 #include "TrackerChannel.h"		// // //
 #include "APU/Types.h"		// // //
-#include "SoundGen.h"
+#include "SoundGenInterface.h"
+#if defined(BUILD_GUI) && defined(_AFX)
+#include "FamiTracker.h"
 #include "Settings.h"		// // //
+#endif
 #include "ChannelHandler.h"
 #include "APU/APU.h"
 #include "InstHandler.h"		// // //
@@ -69,7 +71,7 @@ CChannelHandler::CChannelHandler(int MaxPeriod, int MaxVolume) :
 
 CChannelHandler::~CChannelHandler() = default;
 
-void CChannelHandler::InitChannel(CAPU *pAPU, int *pVibTable, CSoundGen *pSoundGen)
+void CChannelHandler::InitChannel(CAPU *pAPU, int *pVibTable, ISoundGen *pSoundGen)
 {
 	// Called from main thread
 
@@ -1014,8 +1016,13 @@ int CChannelHandler::LimitVolume(int Volume) const		// // //
 		return 0;
 
 	Volume = std::max(0, std::min(m_iMaxVolume, Volume));
-	if (Volume == 0 && !theApp.GetSettings()->General.bCutVolume && m_iInstVolume > 0 && m_iVolume > 0)		// // //
+#if defined(BUILD_GUI) && defined(_AFX)
+	if (Volume == 0 && !theApp.GetSettings()->General.bCutVolume && m_iInstVolume > 0 && m_iVolume > 0)
 		return 1;
+#else
+	if (Volume == 0 && m_iInstVolume > 0 && m_iVolume > 0)
+		return 1;
+#endif
 	return Volume;
 }
 

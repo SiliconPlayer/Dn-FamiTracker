@@ -20,7 +20,7 @@
 
 // Sunsoft 5B (YM2149/AY-3-8910)
 
-#include "stdafx.h"
+#include "Common.h"
 #include "FamiTrackerTypes.h"		// // //
 #include "APU/Types.h"		// // //
 #include "Sequence.h"		// // //

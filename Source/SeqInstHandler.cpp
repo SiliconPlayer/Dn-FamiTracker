@@ -18,11 +18,15 @@
 ** along with this program. If not, see https://www.gnu.org/licenses/.
 */
 
+#if defined(BUILD_GUI) && defined(_AFX)
 #include "stdafx.h"
 #include "FamiTracker.h" // theApp.getSoundGenerator()
+#include "SoundGen.h"
+#else
+#include "Common.h"
+#endif
 #include "APU/Types.h"
 #include "FamiTrackerTypes.h"
-#include "SoundGen.h"
 
 #include "Instrument.h"
 #include "SeqInstrument.h"
@@ -120,7 +124,9 @@ void CSeqInstHandler::UpdateInstrument()
 						--m_iSeqPointer[i];
 					}
 				}
+#if defined(BUILD_GUI) && defined(_AFX)
 				theApp.GetSoundGenerator()->SetSequencePlayPos(m_pSequence[i], m_iSeqPointer[i]);
+#endif
 			}
 			break;
 
@@ -132,7 +138,9 @@ void CSeqInstHandler::UpdateInstrument()
 				break;
 			}
 			m_iSeqState[i] = SEQ_STATE_HALT;
+#if defined(BUILD_GUI) && defined(_AFX)
 			theApp.GetSoundGenerator()->SetSequencePlayPos(m_pSequence[i], -1);
+#endif
 			break;
 
 		case SEQ_STATE_HALT:
