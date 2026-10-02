@@ -119,6 +119,6 @@ if(BUILD_CLI)
     endif()
 
     if(NOT MSVC)
-        target_link_libraries(dnfamitracker-cli PRIVATE m pthread)
+        target_link_libraries(dnfamitracker-cli PRIVATE m pthread dl)
     endif()
 endif()

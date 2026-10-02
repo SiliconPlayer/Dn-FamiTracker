@@ -1,16 +1,72 @@
 /*
- * dnfamitracker-cli - Command-line test harness for Dn-FamiTracker
+ * dnfamitracker-cli - Command-line test harness & standalone player for Dn-FamiTracker
  */
+
+#define MINIAUDIO_IMPLEMENTATION
+#define MA_NO_DECODING
+#define MA_NO_ENCODING
+#define MA_NO_WAV
+#define MA_NO_FLAC
+#define MA_NO_MP3
+#define MA_NO_RESOURCE_MANAGER
+#define MA_NO_NODE_GRAPH
+#define MA_NO_ENGINE
+#define MA_NO_GENERATION
+#include "miniaudio.h"
 
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <vector>
+#include <string>
+#include <sstream>
 #include <cmath>
+#include <chrono>
+#include <thread>
+#include <atomic>
+#include <unistd.h>
+#include <termios.h>
+#include <signal.h>
+
+#ifdef ECHO
+static const tcflag_t TERMIOS_ECHO = ECHO;
+#undef ECHO
+#endif
+
 #include "Source/Common.h"
 #include "Source/FTMDocument.h"
 #include "Source/FTMPlayer.h"
 #include "Source/FamiTrackerTypes.h"
+
+static std::atomic<bool> g_running{true};
+
+static void sigint_handler(int) {
+    g_running = false;
+}
+
+struct TerminalRawMode {
+    struct termios orig;
+    bool active = false;
+
+    TerminalRawMode() {
+        if (isatty(STDIN_FILENO)) {
+            if (tcgetattr(STDIN_FILENO, &orig) == 0) {
+                struct termios raw = orig;
+                raw.c_lflag &= ~(TERMIOS_ECHO | ICANON);
+                raw.c_cc[VMIN] = 0;
+                raw.c_cc[VTIME] = 0;
+                tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+                active = true;
+            }
+        }
+    }
+
+    ~TerminalRawMode() {
+        if (active) {
+            tcsetattr(STDIN_FILENO, TCSANOW, &orig);
+        }
+    }
+};
 
 static const char* ChipName(unsigned char chip) {
     switch (chip) {
@@ -56,22 +112,88 @@ static bool WriteWavFile(const char* filename, const std::vector<int16_t>& sampl
     return out.good();
 }
 
+static void audio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount) {
+    (void)pInput;
+    CFTMPlayer* player = static_cast<CFTMPlayer*>(pDevice->pUserData);
+    if (!player) return;
+    player->Render(static_cast<float*>(pOutput), static_cast<int>(frameCount));
+}
+
+static void PrintUsage(const char* prog) {
+    std::cout << "Usage: " << prog << " <module.ftm|module.dnm> [options]\n\n"
+              << "Options:\n"
+              << "  -p, --play             Realtime interactive audio playback via miniaudio\n"
+              << "  -t, --subtune <idx>    Select subtune (1-based index, default: 1)\n"
+              << "  -o, --output <out.wav> Render to WAV file\n"
+              << "  -s, --seconds <sec>    Render duration limit in seconds (default: full length)\n"
+              << "  -m, --mute <ch,...>    Comma-separated list of channel indices to mute\n"
+              << "  -i, --info             Print module metadata and exit\n"
+              << "  -h, --help             Show this help message\n\n"
+              << "Interactive Controls during Playback (-p):\n"
+              << "  [Space]        Pause / Resume\n"
+              << "  [Left/Right]   Seek -5s / +5s\n"
+              << "  [1] - [9]      Toggle mute on channels 1 to 9\n"
+              << "  [q] / [Esc]    Quit\n";
+}
+
 int main(int argc, char* argv[]) {
-    std::cout << "dnfamitracker-cli - Headless FamiTracker Harness\n";
     if (argc < 2) {
-        std::cout << "Usage: " << argv[0] << " <module.ftm|module.dnm> [output.wav] [seconds]\n";
+        PrintUsage(argv[0]);
         return 1;
     }
 
-    const char* path = argv[1];
-    const char* wavPath = (argc >= 3) ? argv[2] : nullptr;
-    double renderSeconds = (argc >= 4) ? std::atof(argv[3]) : 0.0;
+    std::string modulePath;
+    std::string wavPath;
+    int selectedSubtune = 1;
+    double renderSeconds = -1.0;
+    bool realtimePlayback = false;
+    bool infoOnly = false;
+    std::vector<int> channelsToMute;
 
-    std::cout << "Loading: " << path << "\n";
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-h" || arg == "--help") {
+            PrintUsage(argv[0]);
+            return 0;
+        } else if (arg == "-p" || arg == "--play") {
+            realtimePlayback = true;
+        } else if (arg == "-i" || arg == "--info") {
+            infoOnly = true;
+        } else if ((arg == "-t" || arg == "--subtune") && i + 1 < argc) {
+            selectedSubtune = std::atoi(argv[++i]);
+        } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
+            wavPath = argv[++i];
+        } else if ((arg == "-s" || arg == "--seconds") && i + 1 < argc) {
+            renderSeconds = std::atof(argv[++i]);
+        } else if ((arg == "-m" || arg == "--mute") && i + 1 < argc) {
+            std::stringstream ss(argv[++i]);
+            std::string item;
+            while (std::getline(ss, item, ',')) {
+                if (!item.empty()) channelsToMute.push_back(std::atoi(item.c_str()));
+            }
+        } else if (arg[0] != '-' && modulePath.empty()) {
+            modulePath = arg;
+        } else if (arg[0] != '-' && wavPath.empty()) {
+            // Positional fallback: <module> [output.wav] [seconds]
+            wavPath = arg;
+        } else if (arg[0] != '-' && renderSeconds < 0.0) {
+            renderSeconds = std::atof(arg.c_str());
+        } else {
+            std::cerr << "Unknown argument: " << arg << "\n";
+            PrintUsage(argv[0]);
+            return 1;
+        }
+    }
 
+    if (modulePath.empty()) {
+        std::cerr << "Error: No module file specified.\n";
+        return 1;
+    }
+
+    std::cout << "Loading: " << modulePath << "\n";
     CFTMDocument doc;
-    if (!doc.LoadDocument(path)) {
-        std::cerr << "Failed to load document: " << path << " (" << (LPCTSTR)doc.GetLastError() << ")\n";
+    if (!doc.LoadDocument(modulePath.c_str())) {
+        std::cerr << "Failed to load document: " << modulePath << " (" << (LPCTSTR)doc.GetLastError() << ")\n";
         return 1;
     }
 
@@ -108,6 +230,10 @@ int main(int argc, char* argv[]) {
                   << std::setw(3) << millis << " (" << durationSec << "s)\n";
     }
 
+    if (infoOnly) {
+        return 0;
+    }
+
     std::cout << "\n=== Initializing Audio Player ===\n";
     CFTMPlayer player;
     const int sampleRate = 44100;
@@ -116,18 +242,119 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::cout << "Active channels: " << player.GetChannelCount() << "\n";
-    for (int ch = 0; ch < player.GetChannelCount(); ++ch) {
-        std::cout << "  Channel " << ch << ": " << player.GetChannelName(ch) << "\n";
+    int subtuneIdx = selectedSubtune - 1;
+    if (subtuneIdx < 0 || subtuneIdx >= (int)doc.GetTrackCount()) {
+        std::cerr << "Invalid subtune " << selectedSubtune << ", defaulting to 1.\n";
+        subtuneIdx = 0;
+    }
+    player.SelectSubtune(subtuneIdx);
+
+    for (int ch : channelsToMute) {
+        player.SetChannelMuted(ch, true);
     }
 
+    std::cout << "Active channels: " << player.GetChannelCount() << "\n";
+    for (int ch = 0; ch < player.GetChannelCount(); ++ch) {
+        std::cout << "  Channel " << ch << ": " << player.GetChannelName(ch)
+                  << (player.IsChannelMuted(ch) ? " [MUTED]" : "") << "\n";
+    }
 
-    // Determine how many seconds to render
+    double songDuration = player.GetDuration(subtuneIdx);
+
+    // 1. Realtime Interactive Playback Mode (-p)
+    if (realtimePlayback) {
+        signal(SIGINT, sigint_handler);
+
+        ma_device_config devConfig = ma_device_config_init(ma_device_type_playback);
+        devConfig.playback.format   = ma_format_f32;
+        devConfig.playback.channels = 2;
+        devConfig.sampleRate        = sampleRate;
+        devConfig.dataCallback      = audio_data_callback;
+        devConfig.pUserData         = &player;
+
+        ma_device device;
+        if (ma_device_init(nullptr, &devConfig, &device) != MA_SUCCESS) {
+            std::cerr << "Failed to initialize audio playback device via miniaudio!\n";
+            return 1;
+        }
+
+        if (ma_device_start(&device) != MA_SUCCESS) {
+            std::cerr << "Failed to start audio playback device!\n";
+            ma_device_uninit(&device);
+            return 1;
+        }
+
+        std::cout << "\n=== Realtime Playback Started (Subsong " << (subtuneIdx + 1) << ") ===\n";
+        std::cout << "Controls: [Space] Pause/Resume | [Left/Right] Seek -5s/+5s | [1-9] Mute Channel | [q] Quit\n\n";
+
+        TerminalRawMode rawMode;
+
+        while (g_running && player.IsPlaying() && !player.IsFinished()) {
+            char c = 0;
+            if (read(STDIN_FILENO, &c, 1) > 0) {
+                if (c == 'q' || c == 'Q' || c == 3) {
+                    g_running = false;
+                    break;
+                } else if (c == ' ') {
+                    player.SetPaused(!player.IsPaused());
+                } else if (c == 27) {
+                    char seq[2] = {0, 0};
+                    if (read(STDIN_FILENO, &seq[0], 1) > 0 && read(STDIN_FILENO, &seq[1], 1) > 0) {
+                        if (seq[0] == '[') {
+                            if (seq[1] == 'C') { // Right Arrow
+                                player.Seek(player.GetCurrentTimeSeconds() + 5.0);
+                            } else if (seq[1] == 'D') { // Left Arrow
+                                double t = player.GetCurrentTimeSeconds() - 5.0;
+                                player.Seek(t > 0.0 ? t : 0.0);
+                            }
+                        }
+                    } else {
+                        g_running = false;
+                        break;
+                    }
+                } else if (c >= '1' && c <= '9') {
+                    int ch = c - '1';
+                    if (ch < player.GetChannelCount()) {
+                        player.SetChannelMuted(ch, !player.IsChannelMuted(ch));
+                    }
+                } else if (c == '0') {
+                    if (9 < player.GetChannelCount()) {
+                        player.SetChannelMuted(9, !player.IsChannelMuted(9));
+                    }
+                }
+            }
+
+            double curSec = player.GetCurrentTimeSeconds();
+            int curM = static_cast<int>(curSec) / 60;
+            int curS = static_cast<int>(curSec) % 60;
+            int totM = static_cast<int>(songDuration) / 60;
+            int totS = static_cast<int>(songDuration) % 60;
+
+            std::cout << "\r["
+                      << std::setfill('0') << std::setw(2) << curM << ":"
+                      << std::setw(2) << curS << " / "
+                      << std::setw(2) << totM << ":"
+                      << std::setw(2) << totS << "] "
+                      << "Frame: " << std::setw(2) << player.GetCurrentFrame()
+                      << " Row: " << std::setw(2) << player.GetCurrentRow() << " "
+                      << (player.IsPaused() ? "[PAUSED] " : "[PLAYING]")
+                      << std::flush;
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+
+        std::cout << "\nStopping playback...\n";
+        ma_device_stop(&device);
+        ma_device_uninit(&device);
+        std::cout << "Done!\n";
+        return 0;
+    }
+
+    // 2. Offline WAV Export / Synthesis Verification
     double durationToRender = renderSeconds;
     if (durationToRender <= 0.0) {
-        if (wavPath) {
-            durationToRender = player.GetDuration(0);
-            if (durationToRender <= 0.0) durationToRender = 10.0;
+        if (!wavPath.empty()) {
+            durationToRender = (songDuration > 0.0) ? songDuration : 10.0;
         } else {
             durationToRender = 3.0; // Quick 3-second synthesis smoke test
         }
@@ -137,7 +364,7 @@ int main(int argc, char* argv[]) {
     const int chunkSize = 1024;
     std::vector<int16_t> chunkBuffer(chunkSize * 2);
     std::vector<int16_t> allSamples;
-    if (wavPath) {
+    if (!wavPath.empty()) {
         allSamples.reserve(static_cast<size_t>(durationToRender * sampleRate * 2));
     }
 
@@ -160,7 +387,7 @@ int main(int argc, char* argv[]) {
             totalSampleCount++;
         }
 
-        if (wavPath) {
+        if (!wavPath.empty()) {
             allSamples.insert(allSamples.end(), chunkBuffer.begin(), chunkBuffer.begin() + rendered * 2);
         }
         totalFramesRendered += rendered;
@@ -179,9 +406,9 @@ int main(int argc, char* argv[]) {
         std::cout << "Synthesis check: WARNING (Output is silent)\n";
     }
 
-    if (wavPath) {
+    if (!wavPath.empty()) {
         std::cout << "\nWriting WAV output to: " << wavPath << "\n";
-        if (WriteWavFile(wavPath, allSamples, sampleRate, 2)) {
+        if (WriteWavFile(wavPath.c_str(), allSamples, sampleRate, 2)) {
             std::cout << "WAV written successfully (" << (allSamples.size() * sizeof(int16_t)) << " bytes)\n";
         } else {
             std::cerr << "Failed to write WAV file!\n";

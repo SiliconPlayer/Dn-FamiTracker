@@ -70,6 +70,8 @@ public:
 	// Playback State
 	bool IsPlaying() const { return m_bPlaying; }
 	bool IsFinished() const { return m_bFinished; }
+	bool IsPaused() const { return m_bPaused; }
+	void SetPaused(bool bPaused) { m_bPaused = bPaused; }
 	int GetCurrentFrame() const { return m_iPlayFrame; }
 	int GetCurrentRow() const { return m_iPlayRow; }
 	double GetCurrentTimeSeconds() const;
@@ -144,6 +146,7 @@ private:
 	uint64_t m_iTotalTicks;
 
 	bool m_bPlaying;
+	bool m_bPaused;
 	bool m_bHaltRequest;
 	bool m_bDoHalt;
 	bool m_bUpdateRow;

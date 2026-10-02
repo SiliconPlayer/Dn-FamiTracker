@@ -60,6 +60,7 @@ CFTMPlayer::CFTMPlayer() :
 	m_iFrameRate(60),
 	m_iTotalTicks(0),
 	m_bPlaying(false),
+	m_bPaused(false),
 	m_bHaltRequest(false),
 	m_bDoHalt(false),
 	m_bUpdateRow(false),
@@ -368,6 +369,7 @@ bool CFTMPlayer::SelectSubtune(int Track)
 void CFTMPlayer::Reset()
 {
 	m_bPlaying = false;
+	m_bPaused = false;
 	m_bFinished = false;
 	m_bHaltRequest = false;
 	m_bDoHalt = false;
@@ -634,6 +636,11 @@ int CFTMPlayer::Render(float* pOutStereo, int NumFrames)
 {
 	if (!pOutStereo || NumFrames <= 0) return 0;
 
+	if (m_bPaused) {
+		std::fill(pOutStereo, pOutStereo + NumFrames * 2, 0.0f);
+		return NumFrames;
+	}
+
 	size_t samplesNeeded = (size_t)NumFrames * 2;
 
 	while ((m_audioFifo.size() - m_audioFifoReadPos) < samplesNeeded && m_bPlaying) {
@@ -659,6 +666,11 @@ int CFTMPlayer::Render(float* pOutStereo, int NumFrames)
 int CFTMPlayer::Render(int16_t* pOutStereo, int NumFrames)
 {
 	if (!pOutStereo || NumFrames <= 0) return 0;
+
+	if (m_bPaused) {
+		memset(pOutStereo, 0, NumFrames * 2 * sizeof(int16_t));
+		return NumFrames;
+	}
 
 	size_t samplesNeeded = (size_t)NumFrames * 2;
 
