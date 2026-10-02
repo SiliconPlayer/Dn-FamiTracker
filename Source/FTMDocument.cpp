@@ -108,6 +108,31 @@ static void to_json(json& j, const stJSONOptionalData& d) {
 	};
 }
 
+typedef std::array<effect_t, EF_COUNT> EffTable;
+static std::pair<EffTable, EffTable> MakeEffectConversion(std::initializer_list<std::pair<effect_t, effect_t>> List)
+{
+	EffTable forward, backward;
+	for (int i = 0; i < EF_COUNT; ++i)
+		forward[i] = backward[i] = static_cast<effect_t>(i);
+	for (const auto &p : List) {
+		forward[p.first] = p.second;
+		backward[p.second] = p.first;
+	}
+	return std::make_pair(forward, backward);
+}
+
+static const auto EFF_CONVERSION_050 = MakeEffectConversion({
+	{EF_SUNSOFT_NOISE,		EF_NOTE_RELEASE},
+	{EF_VRC7_PORT,			EF_GROOVE},
+	{EF_VRC7_WRITE,			EF_TRANSPOSE},
+	{EF_NOTE_RELEASE,		EF_N163_WAVE_BUFFER},
+	{EF_GROOVE,				EF_FDS_VOLUME},
+	{EF_TRANSPOSE,			EF_FDS_MOD_BIAS},
+	{EF_N163_WAVE_BUFFER,	EF_SUNSOFT_NOISE},
+	{EF_FDS_VOLUME,			EF_VRC7_PORT},
+	{EF_FDS_MOD_BIAS,		EF_VRC7_WRITE},
+});
+
 CFTMDocument::CFTMDocument() :
 	m_bFileLoaded(false),
 	m_iFileVersion(0),
@@ -747,9 +772,12 @@ void CFTMDocument::ReadBlock_Sequences(CDocumentFile *pDocFile, const int Versio
 	else if (Version >= 3) {
 		CSequenceManager *pManager = GetSequenceManager(INST_2A03);
 
+		int Indices[MAX_SEQUENCES * SEQ_COUNT];
+		int Types[MAX_SEQUENCES * SEQ_COUNT];
+
 		for (unsigned int i = 0; i < Count; ++i) {
-			unsigned int Index = AssertRange(pDocFile->GetBlockInt(), 0, MAX_SEQUENCES - 1, "Sequence index");
-			unsigned int Type = AssertRange(pDocFile->GetBlockInt(), 0, SEQ_COUNT - 1, "Sequence type");
+			unsigned int Index = Indices[i] = AssertRange(pDocFile->GetBlockInt(), 0, MAX_SEQUENCES - 1, "Sequence index");
+			unsigned int Type = Types[i] = AssertRange(pDocFile->GetBlockInt(), 0, SEQ_COUNT - 1, "Sequence type");
 			try {
 				unsigned char SeqCount = pDocFile->GetBlockChar();
 				CSequence *pSeq = pManager->GetCollection(Type)->GetSequence(Index);
@@ -780,6 +808,38 @@ void CFTMDocument::ReadBlock_Sequences(CDocumentFile *pDocFile, const int Versio
 				throw;
 			}
 		}
+
+		if (Version == 5) {
+			for (unsigned int i = 0; i < MAX_SEQUENCES; ++i) {
+				for (int j = 0; j < SEQ_COUNT; ++j) try {
+					int ReleasePoint = pDocFile->GetBlockInt();
+					int Settings = pDocFile->GetBlockInt();
+					CSequence *pSeq = pManager->GetCollection(j)->GetSequence(i);
+					int Length = pSeq->GetItemCount();
+					if (Length > 0) {
+						pSeq->SetReleasePoint(AssertRange<MODULE_ERROR_STRICT>(
+							ReleasePoint, -1, Length - 1, "Sequence release point"));
+						pSeq->SetSetting(static_cast<seq_setting_t>(Settings));
+					}
+				}
+				catch (CModuleException *e) {
+					e->AppendError("At 2A03 %s sequence %d,", CInstrument2A03::SEQUENCE_NAME[j], i);
+					throw;
+				}
+			}
+		}
+		else if (Version >= 6) {
+			for (unsigned int i = 0; i < Count; ++i) try {
+				CSequence *pSeq = pManager->GetCollection(Types[i])->GetSequence(Indices[i]);
+				pSeq->SetReleasePoint(AssertRange<MODULE_ERROR_STRICT>(
+					pDocFile->GetBlockInt(), -1, static_cast<int>(pSeq->GetItemCount()) - 1, "Sequence release point"));
+				pSeq->SetSetting(static_cast<seq_setting_t>(pDocFile->GetBlockInt()));
+			}
+			catch (CModuleException *e) {
+				e->AppendError("At 2A03 %s sequence %d,", CInstrument2A03::SEQUENCE_NAME[Types[i]], Indices[i]);
+				throw;
+			}
+		}
 	}
 }
 
@@ -788,29 +848,27 @@ void CFTMDocument::ReadBlock_SequencesVRC6(CDocumentFile *pDocFile, const int Ve
 	unsigned int Count = AssertRange(pDocFile->GetBlockInt(), 0, MAX_SEQUENCES * SEQ_COUNT, "VRC6 sequence count");
 	CSequenceManager *pManager = GetSequenceManager(INST_VRC6);
 
+	int Indices[MAX_SEQUENCES * SEQ_COUNT];
+	int Types[MAX_SEQUENCES * SEQ_COUNT];
 	for (unsigned int i = 0; i < Count; ++i) {
-		unsigned int Index = AssertRange(pDocFile->GetBlockInt(), 0, MAX_SEQUENCES - 1, "Sequence index");
-		unsigned int Type = AssertRange(pDocFile->GetBlockInt(), 0, SEQ_COUNT - 1, "Sequence type");
+		unsigned int Index = Indices[i] = AssertRange(pDocFile->GetBlockInt(), 0, MAX_SEQUENCES - 1, "Sequence index");
+		unsigned int Type = Types[i] = AssertRange(pDocFile->GetBlockInt(), 0, SEQ_COUNT - 1, "Sequence type");
 		try {
 			unsigned char SeqCount = pDocFile->GetBlockChar();
 			CSequence *pSeq = pManager->GetCollection(Type)->GetSequence(Index);
 			pSeq->Clear();
 			pSeq->SetItemCount(SeqCount < MAX_SEQUENCE_ITEMS ? SeqCount : MAX_SEQUENCE_ITEMS);
 
-			unsigned int LoopPoint = AssertRange<MODULE_ERROR_STRICT>(
-				pDocFile->GetBlockInt(), -1, static_cast<int>(SeqCount), "Sequence loop point");
-			if (LoopPoint != SeqCount)
-				pSeq->SetLoopPoint(LoopPoint);
+			pSeq->SetLoopPoint(AssertRange<MODULE_ERROR_STRICT>(
+				pDocFile->GetBlockInt(), -1, static_cast<int>(SeqCount) - 1, "Sequence loop point"));
 
-			if (Version == 2) {
-				int ReleasePoint = pDocFile->GetBlockInt();
-				int Settings = pDocFile->GetBlockInt();
+			if (Version == 4) {
 				pSeq->SetReleasePoint(AssertRange<MODULE_ERROR_STRICT>(
-					ReleasePoint, -1, static_cast<int>(SeqCount) - 1, "Sequence release point"));
-				pSeq->SetSetting(static_cast<seq_setting_t>(Settings));
+					pDocFile->GetBlockInt(), -1, static_cast<int>(SeqCount) - 1, "Sequence release point"));
+				pSeq->SetSetting(static_cast<seq_setting_t>(pDocFile->GetBlockInt()));
 			}
 
-			for (int j = 0; j < SeqCount; ++j) {
+			for (unsigned int j = 0; j < SeqCount; ++j) {
 				char Value = pDocFile->GetBlockChar();
 				if (j < MAX_SEQUENCE_ITEMS)
 					pSeq->SetItem(j, Value);
@@ -818,6 +876,38 @@ void CFTMDocument::ReadBlock_SequencesVRC6(CDocumentFile *pDocFile, const int Ve
 		}
 		catch (CModuleException *e) {
 			e->AppendError("At VRC6 %s sequence %d,", CInstrumentVRC6::SEQUENCE_NAME[Type], Index);
+			throw;
+		}
+	}
+
+	if (Version == 5) {
+		for (int i = 0; i < MAX_SEQUENCES; ++i) {
+			for (int j = 0; j < SEQ_COUNT; ++j) try {
+				int ReleasePoint = pDocFile->GetBlockInt();
+				int Settings = pDocFile->GetBlockInt();
+				CSequence *pSeq = pManager->GetCollection(j)->GetSequence(i);
+				int Length = pSeq->GetItemCount();
+				if (Length > 0) {
+					pSeq->SetReleasePoint(AssertRange<MODULE_ERROR_STRICT>(
+						ReleasePoint, -1, Length - 1, "Sequence release point"));
+					pSeq->SetSetting(static_cast<seq_setting_t>(Settings));
+				}
+			}
+			catch (CModuleException *e) {
+				e->AppendError("At VRC6 %s sequence %d,", CInstrumentVRC6::SEQUENCE_NAME[j], i);
+				throw;
+			}
+		}
+	}
+	else if (Version >= 6) {
+		for (unsigned int i = 0; i < Count; ++i) try {
+			CSequence *pSeq = pManager->GetCollection(Types[i])->GetSequence(Indices[i]);
+			pSeq->SetReleasePoint(AssertRange<MODULE_ERROR_STRICT>(
+				pDocFile->GetBlockInt(), -1, static_cast<int>(pSeq->GetItemCount()) - 1, "Sequence release point"));
+			pSeq->SetSetting(static_cast<seq_setting_t>(pDocFile->GetBlockInt()));
+		}
+		catch (CModuleException *e) {
+			e->AppendError("At VRC6 %s sequence %d,", CInstrumentVRC6::SEQUENCE_NAME[Types[i]], Indices[i]);
 			throw;
 		}
 	}
@@ -1008,13 +1098,19 @@ void CFTMDocument::ReadBlock_Patterns(CDocumentFile *pDocFile, const int Version
 						Note->EffNumber[n] = static_cast<effect_t>(EffectNumber);
 						Note->EffParam[n] = EffectParam;
 					}
-					else {
+					else if (Version < 6) {
 						(void)pDocFile->GetBlockChar();
 					}
 				}
 				catch (CModuleException *e) {
 					e->AppendError("At effect column %d,", n + 1);
 					throw;
+				}
+
+				if (m_iFileVersion < 0x450 || m_bFileDnModule) {
+					for (auto &x : Note->EffNumber)
+						if (x < EF_COUNT)
+							x = EFF_CONVERSION_050.first[x];
 				}
 			}
 			catch (CModuleException *e) {
