@@ -91,6 +91,12 @@ public:
 	virtual void	Log(uint16_t Address, uint8_t Value);		// // //
 	CRegisterLogger *GetRegisterLogger() const;		// // //
 
+	virtual void ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) const
+	{
+		if (pBuffer && Count > 0)
+			std::fill_n(pBuffer, Count, 0.0f);
+	}
+
 	/// Returns the total number of channels that this sound chip has.
 	virtual uint8_t GetChannelCount() const = 0; // TODO: Dynamically calculate this?
 

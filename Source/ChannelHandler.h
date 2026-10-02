@@ -318,6 +318,8 @@ public:		// // //
 	/*!	\brief Obtains the current channel volume.
 		\return The channel volume level. */
 	int GetChannelVolume() const override;
+	int GetInstrument() const { return m_iInstrument; }
+	bool IsGate() const { return m_bGate; }
 
 	/*!	\brief Sets the current duty cycle value of the channel.
 		\details The value received by the channel is converted according to the current instrument type.

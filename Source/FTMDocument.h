@@ -117,8 +117,12 @@ public:
 	uint8_t GetOPLLPatchByte(int index) const { return (index >= 0 && index < 19 * 8) ? m_iOPLLPatchBytes[index] : 0; }
 	std::string GetOPLLPatchName(int index) const { return (index >= 0 && index < 19) ? m_strOPLLPatchNames[index] : ""; }
 
-	// Samples
+	// Samples and instruments
 	void SetSample(unsigned int Index, CDSample *pSamp);
+	unsigned int GetInstrumentCount() const;
+	std::string GetInstrumentName(unsigned int Index) const;
+	unsigned int GetSampleCount() const;
+	std::string GetSampleName(unsigned int Index) const;
 
 	// Song length / duration calculation (in seconds)
 	double GetStandardLength(int Track, unsigned int ExtraLoops = 1) const;

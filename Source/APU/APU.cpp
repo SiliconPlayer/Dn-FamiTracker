@@ -402,6 +402,79 @@ int32_t CAPU::GetVol(uint8_t Chan) const
 	return m_pMixer->GetChanOutput(Chan);
 }
 
+void CAPU::ReadChannelWaveformSamples(int chanId, float* pBuffer, uint32_t count) const
+{
+	if (!pBuffer || count == 0) return;
+	switch (chanId) {
+	case CHANID_SQUARE1:
+	case CHANID_SQUARE2:
+	case CHANID_TRIANGLE:
+	case CHANID_NOISE:
+	case CHANID_DPCM:
+		if (m_p2A03)
+			m_p2A03->ReadWaveformSamples(chanId - CHANID_SQUARE1, pBuffer, count);
+		else
+			std::fill_n(pBuffer, count, 0.0f);
+		break;
+	case CHANID_VRC6_PULSE1:
+	case CHANID_VRC6_PULSE2:
+	case CHANID_VRC6_SAWTOOTH:
+		if (m_pVRC6)
+			m_pVRC6->ReadWaveformSamples(chanId - CHANID_VRC6_PULSE1, pBuffer, count);
+		else
+			std::fill_n(pBuffer, count, 0.0f);
+		break;
+	case CHANID_MMC5_SQUARE1:
+	case CHANID_MMC5_SQUARE2:
+		if (m_pMMC5)
+			m_pMMC5->ReadWaveformSamples(chanId - CHANID_MMC5_SQUARE1, pBuffer, count);
+		else
+			std::fill_n(pBuffer, count, 0.0f);
+		break;
+	case CHANID_N163_CH1:
+	case CHANID_N163_CH2:
+	case CHANID_N163_CH3:
+	case CHANID_N163_CH4:
+	case CHANID_N163_CH5:
+	case CHANID_N163_CH6:
+	case CHANID_N163_CH7:
+	case CHANID_N163_CH8:
+		if (m_pN163)
+			m_pN163->ReadWaveformSamples(chanId - CHANID_N163_CH1, pBuffer, count);
+		else
+			std::fill_n(pBuffer, count, 0.0f);
+		break;
+	case CHANID_FDS:
+		if (m_pFDS)
+			m_pFDS->ReadWaveformSamples(0, pBuffer, count);
+		else
+			std::fill_n(pBuffer, count, 0.0f);
+		break;
+	case CHANID_VRC7_CH1:
+	case CHANID_VRC7_CH2:
+	case CHANID_VRC7_CH3:
+	case CHANID_VRC7_CH4:
+	case CHANID_VRC7_CH5:
+	case CHANID_VRC7_CH6:
+		if (m_pVRC7)
+			m_pVRC7->ReadWaveformSamples(chanId - CHANID_VRC7_CH1, pBuffer, count);
+		else
+			std::fill_n(pBuffer, count, 0.0f);
+		break;
+	case CHANID_S5B_CH1:
+	case CHANID_S5B_CH2:
+	case CHANID_S5B_CH3:
+		if (m_pS5B)
+			m_pS5B->ReadWaveformSamples(chanId - CHANID_S5B_CH1, pBuffer, count);
+		else
+			std::fill_n(pBuffer, count, 0.0f);
+		break;
+	default:
+		std::fill_n(pBuffer, count, 0.0f);
+		break;
+	}
+}
+
 uint8_t CAPU::GetSamplePos() const
 {
 	return m_p2A03->GetSamplePos();

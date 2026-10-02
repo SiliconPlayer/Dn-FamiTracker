@@ -21,6 +21,7 @@
 #include "APU.h"
 #include "FDS.h"
 #include "../RegisterState.h"		// // //
+#include <cstring>
 #define _USE_MATH_DEFINES
 #include <math.h>		// !! !! M_PI
 
@@ -41,6 +42,10 @@ void CFDS::Reset()
 	m_SynthFDS.clear();
 	m_BlipFDS.clear();
 	m_lowPassState = 0.0f;
+
+	m_channelWaveformBuffer[0].assign(WAVEFORM_FRAME_BUFFER_SIZE, 0.0f);
+	m_lastWaveformSample[0] = 0;
+	m_lastWaveformLevel[0] = 0.0f;
 }
 
 void CFDS::UpdateFilter(blip_eq_t eq)
@@ -117,6 +122,19 @@ void CFDS::Process(uint32_t Time, Blip_Buffer& Output)
 		auto out = m_FDS.ClockAudio();
 		m_ChannelLevel.update(out);
 		m_SynthFDS.update(m_iTime + now, (int) out, &m_BlipFDS);
+
+		uint32_t samplePos = m_BlipFDS.count_samples(m_iTime + now);
+		if (samplePos > WAVEFORM_FRAME_BUFFER_SIZE)
+			samplePos = static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE);
+		uint32_t prev = m_lastWaveformSample[0];
+		if (samplePos > prev) {
+			std::fill(m_channelWaveformBuffer[0].begin() + prev,
+			          m_channelWaveformBuffer[0].begin() + samplePos,
+			          m_lastWaveformLevel[0]);
+			m_lastWaveformSample[0] = samplePos;
+		}
+		m_lastWaveformLevel[0] = (float)out / 63.0f;
+
 		now++;
 	}
 
@@ -125,6 +143,15 @@ void CFDS::Process(uint32_t Time, Blip_Buffer& Output)
 
 void CFDS::EndFrame(Blip_Buffer& Output, gsl::span<int16_t> TempBuffer)
 {
+	uint32_t totalSamples = m_BlipFDS.count_samples(m_iTime);
+	uint32_t endPos = std::min(totalSamples, static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE));
+	if (endPos > m_lastWaveformSample[0]) {
+		std::fill(m_channelWaveformBuffer[0].begin() + m_lastWaveformSample[0],
+		          m_channelWaveformBuffer[0].begin() + endPos,
+		          m_lastWaveformLevel[0]);
+	}
+	m_lastWaveformSample[0] = 0;
+
 	// Precondition: m_iTime matches the clock-duration of this frame (CAPU::m_iFrameCycles).
 	// I'm not sure if this is true.
 	m_BlipFDS.end_frame(m_iTime);
@@ -245,4 +272,25 @@ void CFDS::RecomputeFdsFilter()
 	// Despite the exponential, this formula will never blow up
 	// because -cutoff_rad is negative, so e^(-cutoff_rad) lies between 0 and 1.
 	m_alpha = 1 - (float)std::exp(-cutoff_rad);
+}
+
+void CFDS::ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) const
+{
+	if (!pBuffer || Count == 0 || Channel != 0) return;
+	uint32_t toCopy = std::min(Count, static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE));
+	std::memcpy(pBuffer, m_channelWaveformBuffer[0].data(), toCopy * sizeof(float));
+	if (Count > toCopy)
+		std::fill(pBuffer + toCopy, pBuffer + Count, 0.0f);
+
+	float minVal = pBuffer[0];
+	float maxVal = pBuffer[0];
+	for (uint32_t i = 1; i < Count; ++i) {
+		if (pBuffer[i] < minVal) minVal = pBuffer[i];
+		if (pBuffer[i] > maxVal) maxVal = pBuffer[i];
+	}
+	if (maxVal > minVal) {
+		float mid = (minVal + maxVal) * 0.5f;
+		for (uint32_t i = 0; i < Count; ++i)
+			pBuffer[i] -= mid;
+	}
 }

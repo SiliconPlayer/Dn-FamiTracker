@@ -93,6 +93,7 @@ public:
 	double GetFreq(int Channel) const override;		// // //
 	int GetChannelLevel(int Channel) override;
 	int GetChannelLevelRange(int Channel) const override;
+	void ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) const override;
 
 public:
 	void UpdateMixingAPU1(double v, bool UseSurveyMix = false);
@@ -125,4 +126,9 @@ private:
 	Blip_Synth<blip_good_quality> Synth2A03TND;
 
 	uint32_t	m_iTime = 0;  // Clock counter, used as a timestamp for Blip_Buffer, resets every new frame
+
+	static const size_t WAVEFORM_FRAME_BUFFER_SIZE = 4096;
+	mutable std::vector<float> m_channelWaveformBuffer[5];
+	mutable uint32_t m_lastWaveformSample[5];
+	mutable float m_lastWaveformLevel[5];
 };

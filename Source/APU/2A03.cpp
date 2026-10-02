@@ -20,6 +20,7 @@
 
 #include "../Common.h"
 #include <algorithm>  // std::min
+#include <cstring>
 #include "APU.h"
 #include "2A03.h"
 #include "../RegisterState.h"		// // //
@@ -70,6 +71,12 @@ void C2A03::Reset()
 		m_ChannelLevels[2].update(m_Apu2.out[0]);
 		m_ChannelLevels[2].getLevel();
 	}
+
+	for (int i = 0; i < 5; ++i) {
+		m_channelWaveformBuffer[i].assign(WAVEFORM_FRAME_BUFFER_SIZE, 0.0f);
+		m_lastWaveformSample[i] = 0;
+		m_lastWaveformLevel[i] = 0.0f;
+	}
 }
 
 void C2A03::UpdateFilter(blip_eq_t eq)
@@ -102,6 +109,25 @@ void C2A03::Process(uint32_t Time, Blip_Buffer& Output)
 		m_ChannelLevels[2].update(m_Apu2.out[0]);
 		m_ChannelLevels[3].update(m_Apu2.out[1]);
 		m_ChannelLevels[4].update(m_Apu2.out[2]);
+
+		uint32_t samplePos = blip_buf.count_samples(m_iTime + now);
+		auto record_waveform = [this](int ch, float level, uint32_t pos) {
+			if (pos > WAVEFORM_FRAME_BUFFER_SIZE)
+				pos = static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE);
+			uint32_t prev = m_lastWaveformSample[ch];
+			if (pos > prev) {
+				std::fill(m_channelWaveformBuffer[ch].begin() + prev,
+				          m_channelWaveformBuffer[ch].begin() + pos,
+				          m_lastWaveformLevel[ch]);
+				m_lastWaveformSample[ch] = pos;
+			}
+			m_lastWaveformLevel[ch] = level;
+		};
+		record_waveform(0, (float)m_Apu1.out[0] / 15.0f, samplePos);
+		record_waveform(1, (float)m_Apu1.out[1] / 15.0f, samplePos);
+		record_waveform(2, (float)m_Apu2.out[0] / 15.0f, samplePos);
+		record_waveform(3, (float)m_Apu2.out[1] / 15.0f, samplePos);
+		record_waveform(4, (float)m_Apu2.out[2] / 127.0f, samplePos);
 	};
 
 	while (now < Time) {
@@ -120,9 +146,40 @@ void C2A03::Process(uint32_t Time, Blip_Buffer& Output)
 	m_iTime += Time;
 }
 
-void C2A03::EndFrame(Blip_Buffer&, gsl::span<int16_t>)
+void C2A03::EndFrame(Blip_Buffer& Output, gsl::span<int16_t>)
 {
+	uint32_t totalSamples = Output.count_samples(m_iTime);
+	for (int ch = 0; ch < 5; ++ch) {
+		uint32_t endPos = std::min(totalSamples, static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE));
+		if (endPos > m_lastWaveformSample[ch]) {
+			std::fill(m_channelWaveformBuffer[ch].begin() + m_lastWaveformSample[ch],
+			          m_channelWaveformBuffer[ch].begin() + endPos,
+			          m_lastWaveformLevel[ch]);
+		}
+		m_lastWaveformSample[ch] = 0;
+	}
 	m_iTime = 0;
+}
+
+void C2A03::ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) const
+{
+	if (!pBuffer || Count == 0 || Channel < 0 || Channel >= 5) return;
+	uint32_t toCopy = std::min(Count, static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE));
+	std::memcpy(pBuffer, m_channelWaveformBuffer[Channel].data(), toCopy * sizeof(float));
+	if (Count > toCopy)
+		std::fill(pBuffer + toCopy, pBuffer + Count, 0.0f);
+
+	float minVal = pBuffer[0];
+	float maxVal = pBuffer[0];
+	for (uint32_t i = 1; i < Count; ++i) {
+		if (pBuffer[i] < minVal) minVal = pBuffer[i];
+		if (pBuffer[i] > maxVal) maxVal = pBuffer[i];
+	}
+	if (maxVal > minVal) {
+		float mid = (minVal + maxVal) * 0.5f;
+		for (uint32_t i = 0; i < Count; ++i)
+			pBuffer[i] -= mid;
+	}
 }
 
 void C2A03::Write(uint16_t Address, uint8_t Value)

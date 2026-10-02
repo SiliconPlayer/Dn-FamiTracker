@@ -49,6 +49,9 @@ void CVRC7::Reset()
 	m_iBufferPtr = 0;
 	m_iTime = 0;
 	m_BlipVRC7.clear();
+	for (int i = 0; i < 6; ++i) {
+		m_channelWaveformBuffer[i].assign(WAVEFORM_FRAME_BUFFER_SIZE, 0.0f);
+	}
 	if (m_pOPLLInt != NULL) {
 		// update patchset and OPLL type
 		OPLL_setChipType(m_pOPLLInt, ((m_UseExternalOPLLChip || m_PatchSelection > 6) ? 0 : 1));
@@ -139,8 +142,12 @@ void CVRC7::EndFrame(Blip_Buffer& Output, gsl::span<int16_t> TempBuffer)
 
 		// emu2413's waveform output ranges from -4095...4095
 		// fully rectified by abs(), so resulting waveform is around 0-4095
-		for (int i = 0; i < 6; i++)
+		for (int i = 0; i < 6; i++) {
 			m_ChannelLevels[i].update(static_cast<uint8_t>((255.0 * (OPLL_getchanvol(i) + 1.0)/4096.0)));
+			if (m_iBufferPtr < WAVEFORM_FRAME_BUFFER_SIZE) {
+				m_channelWaveformBuffer[i][m_iBufferPtr] = static_cast<float>(m_pOPLLInt->ch_out[i]) / 4096.0f;
+			}
+		}
 
 		// Apply direct volume, hacky workaround
 		int32_t Sample = static_cast<int32_t>(double(RawSample) * m_DirectVolume);
@@ -159,6 +166,15 @@ void CVRC7::EndFrame(Blip_Buffer& Output, gsl::span<int16_t> TempBuffer)
 	m_iBufferPtr -= WantSamples;
 
 	m_iTime = 0;
+}
+
+void CVRC7::ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) const
+{
+	if (!pBuffer || Count == 0 || Channel < 0 || Channel >= 6) return;
+	uint32_t toCopy = std::min(Count, static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE));
+	std::memcpy(pBuffer, m_channelWaveformBuffer[Channel].data(), toCopy * sizeof(float));
+	if (Count > toCopy)
+		std::fill(pBuffer + toCopy, pBuffer + Count, 0.0f);
 }
 
 double CVRC7::GetFreq(int Channel) const		// // //

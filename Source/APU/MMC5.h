@@ -40,6 +40,7 @@ public:
 	double	GetFreq(int Channel) const override;
 	int		GetChannelLevel(int Channel) override;
 	int		GetChannelLevelRange(int Channel) const override;
+	void	ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) const override;
 	void	UpdateMixLevel(double v, bool UseSurveyMix);
 
 	// Report some basic information about the chip
@@ -55,4 +56,9 @@ private:
 	ChannelLevelState<uint8_t> m_ChannelLevels[2];
 
 	uint32_t m_iTime = 0;
+
+	static const size_t WAVEFORM_FRAME_BUFFER_SIZE = 4096;
+	mutable std::vector<float> m_channelWaveformBuffer[2];
+	mutable uint32_t m_lastWaveformSample[2];
+	mutable float m_lastWaveformLevel[2];
 };

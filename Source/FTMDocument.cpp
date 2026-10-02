@@ -1595,3 +1595,32 @@ double CFTMDocument::GetStandardLength(int Track, unsigned int ExtraLoops) const
 
 	return (2.5 * (FirstLoop + SecondLoop * ExtraLoops));
 }
+
+unsigned int CFTMDocument::GetInstrumentCount() const
+{
+	return m_pInstrumentManager ? m_pInstrumentManager->GetInstrumentCount() : 0;
+}
+
+std::string CFTMDocument::GetInstrumentName(unsigned int Index) const
+{
+	if (!m_pInstrumentManager) return "";
+	auto pInst = m_pInstrumentManager->GetInstrument(Index);
+	if (!pInst) return "";
+	return pInst->GetName() ? std::string(pInst->GetName()) : "";
+}
+
+unsigned int CFTMDocument::GetSampleCount() const
+{
+	if (!m_pInstrumentManager) return 0;
+	auto pSampleMgr = m_pInstrumentManager->GetDSampleManager();
+	return pSampleMgr ? pSampleMgr->GetSampleCount() : 0;
+}
+
+std::string CFTMDocument::GetSampleName(unsigned int Index) const
+{
+	if (!m_pInstrumentManager) return "";
+	auto pSampleMgr = m_pInstrumentManager->GetDSampleManager();
+	if (!pSampleMgr) return "";
+	const CDSample* pSamp = pSampleMgr->GetDSample(Index);
+	return (pSamp && pSamp->GetName()) ? std::string(pSamp->GetName()) : "";
+}

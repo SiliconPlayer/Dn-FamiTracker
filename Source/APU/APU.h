@@ -67,6 +67,7 @@ public:
 	uint8_t	Read(uint16_t Address);
 
 	int32_t	GetVol(uint8_t Chan) const;
+	void	ReadChannelWaveformSamples(int chanId, float* pBuffer, uint32_t count) const;
 	uint8_t	GetReg(int Chip, int Reg) const;
 	double	GetFreq(int Chip, int Chan) const;		// // //
 	int	GetFDSModCounter() const;		// TODO: reading $4097 returns $00 for some reason, fix that and remove this hack instead

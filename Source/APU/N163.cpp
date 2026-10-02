@@ -22,6 +22,7 @@
 #include "APU.h"
 #include "N163.h"
 #include "../RegisterState.h"		// // //
+#include <cstring>
 #define _USE_MATH_DEFINES
 #include <math.h>		// !! !! M_PI
 
@@ -47,6 +48,12 @@ void CN163::Reset()
 	m_SynthN163.clear();
 	m_BlipN163.clear();
 	m_lowPassState = 0.0f;
+
+	for (int i = 0; i < 8; ++i) {
+		m_channelWaveformBuffer[i].assign(WAVEFORM_FRAME_BUFFER_SIZE, 0.0f);
+		m_lastWaveformSample[i] = 0;
+		m_lastWaveformLevel[i] = 0.0f;
+	}
 }
 
 void CN163::UpdateFilter(blip_eq_t eq)
@@ -119,6 +126,23 @@ void CN163::Process(uint32_t Time, Blip_Buffer& Output)
 		for (int i = 0; i < 8; i++)
 			m_ChannelLevels[i].update((int32_t) m_N163._channelOutput[7 - i]);
 
+		uint32_t samplePos = m_BlipN163.count_samples(m_iTime + now);
+		auto record_waveform = [this](int ch, float level, uint32_t pos) {
+			if (pos > WAVEFORM_FRAME_BUFFER_SIZE)
+				pos = static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE);
+			uint32_t prev = m_lastWaveformSample[ch];
+			if (pos > prev) {
+				std::fill(m_channelWaveformBuffer[ch].begin() + prev,
+				          m_channelWaveformBuffer[ch].begin() + pos,
+				          m_lastWaveformLevel[ch]);
+				m_lastWaveformSample[ch] = pos;
+			}
+			m_lastWaveformLevel[ch] = level;
+		};
+		for (int i = 0; i < 8; ++i) {
+			record_waveform(i, (float)m_N163._channelOutput[7 - i] / 128.0f, samplePos);
+		}
+
 		now++;
 	}
 
@@ -138,6 +162,17 @@ void CN163::EndFrame(Blip_Buffer& Output, gsl::span<int16_t> TempBuffer)
 			}
 	}
 
+	uint32_t totalSamples = m_BlipN163.count_samples(m_iTime);
+	for (int ch = 0; ch < 8; ++ch) {
+		uint32_t endPos = std::min(totalSamples, static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE));
+		if (endPos > m_lastWaveformSample[ch]) {
+			std::fill(m_channelWaveformBuffer[ch].begin() + m_lastWaveformSample[ch],
+			          m_channelWaveformBuffer[ch].begin() + endPos,
+			          m_lastWaveformLevel[ch]);
+		}
+		m_lastWaveformSample[ch] = 0;
+	}
+
 	m_BlipN163.end_frame(m_iTime);
 
 	ASSERT(size_t(m_BlipN163.samples_avail()) <= TempBuffer.size());
@@ -155,6 +190,15 @@ void CN163::EndFrame(Blip_Buffer& Output, gsl::span<int16_t> TempBuffer)
 	Output.mix_samples_raw(unfilteredData.data(), static_cast<blip_nsamp_t>(unfilteredData.size()));
 
 	m_iTime = 0;
+}
+
+void CN163::ReadWaveformSamples(int Channel, float* pBuffer, uint32_t Count) const
+{
+	if (!pBuffer || Count == 0 || Channel < 0 || Channel >= 8) return;
+	uint32_t toCopy = std::min(Count, static_cast<uint32_t>(WAVEFORM_FRAME_BUFFER_SIZE));
+	std::memcpy(pBuffer, m_channelWaveformBuffer[Channel].data(), toCopy * sizeof(float));
+	if (Count > toCopy)
+		std::fill(pBuffer + toCopy, pBuffer + Count, 0.0f);
 }
 
 double CN163::GetFreq(int Channel) const

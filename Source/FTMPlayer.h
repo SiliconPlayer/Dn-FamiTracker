@@ -62,11 +62,18 @@ public:
 
 	// Channel inspection & muting
 	int GetChannelCount() const { return m_iActiveChannels; }
+	int GetActiveChannelCount() const { return m_iActiveChannels; }
+	int GetChannelID(int Channel) const;
+	int GetChannelChip(int Channel) const;
 	const char* GetChannelName(int Channel) const;
 	void SetChannelMuted(int Channel, bool Muted);
 	bool IsChannelMuted(int Channel) const;
 	float GetChannelLevel(int Channel) const;
 	void GetChannelLevels(float* pOutLevels, int MaxChannels) const;
+	float GetChannelVU(int Channel) const;
+	int GetChannelWaveform(int Channel, float* pOutBuffer, int MaxSamples) const;
+	std::vector<int32_t> GetChannelDisplayState(int MaxChannels) const;
+	int GetChannelDisplayState(int Channel, int32_t* pOutState, int MaxFields) const;
 
 	// Playback State
 	bool IsPlaying() const;
@@ -158,6 +165,65 @@ private:
 	// Sample buffer FIFO
 	std::vector<int16_t> m_audioFifo;
 	size_t m_audioFifoReadPos;
+
+	static const int CHANNEL_WAVEFORM_BUFFER_SIZE = 32768;
+
+	struct ChannelWaveformBuffer {
+		std::vector<float> data;
+		uint32_t writePos = 0;
+		uint32_t available = 0;
+
+		ChannelWaveformBuffer() : data(CHANNEL_WAVEFORM_BUFFER_SIZE, 0.0f) {}
+
+		void Reset() {
+			std::fill(data.begin(), data.end(), 0.0f);
+			writePos = 0;
+			available = 0;
+		}
+
+		void Push(const float* pSamples, uint32_t count) {
+			if (!pSamples || count == 0) return;
+			const uint32_t bufSize = CHANNEL_WAVEFORM_BUFFER_SIZE;
+			for (uint32_t i = 0; i < count; ++i) {
+				data[writePos] = std::clamp(pSamples[i], -1.0f, 1.0f);
+				writePos = (writePos + 1) % bufSize;
+			}
+			available = std::min(available + count, bufSize);
+		}
+
+		void PushZeroes(uint32_t count) {
+			if (count == 0) return;
+			const uint32_t bufSize = CHANNEL_WAVEFORM_BUFFER_SIZE;
+			for (uint32_t i = 0; i < count; ++i) {
+				data[writePos] = 0.0f;
+				writePos = (writePos + 1) % bufSize;
+			}
+			available = std::min(available + count, bufSize);
+		}
+
+		int GetSamples(float* pOut, int maxSamples) const {
+			if (!pOut || maxSamples <= 0) return 0;
+			const uint32_t req = static_cast<uint32_t>(maxSamples);
+			const uint32_t bufSize = CHANNEL_WAVEFORM_BUFFER_SIZE;
+			const uint32_t copyCount = std::min(req, std::min(available, bufSize));
+			const uint32_t padCount = req - copyCount;
+			if (padCount > 0) {
+				std::fill_n(pOut, padCount, 0.0f);
+			}
+			if (copyCount > 0) {
+				uint32_t readPos = (writePos + bufSize - copyCount) % bufSize;
+				uint32_t firstRun = std::min(copyCount, bufSize - readPos);
+				std::memcpy(pOut + padCount, data.data() + readPos, firstRun * sizeof(float));
+				if (copyCount > firstRun) {
+					std::memcpy(pOut + padCount + firstRun, data.data(), (copyCount - firstRun) * sizeof(float));
+				}
+			}
+			return maxSamples;
+		}
+	};
+
+	ChannelWaveformBuffer m_channelWaveformBuffers[MAX_PLAYER_CHANNELS];
+	stChanNote m_lastPatternNotes[MAX_PLAYER_CHANNELS];
 
 	mutable std::recursive_mutex m_mutex;
 };

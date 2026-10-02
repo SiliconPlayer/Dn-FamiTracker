@@ -22,6 +22,8 @@
 #include "FTMPlayer.h"
 #include "ChannelFactory.h"
 #include "ChannelsN163.h"
+#include "Instrument2A03.h"
+#include "InstrumentManager.h"
 #include "DetuneTable.h"
 #include <cmath>
 #include <cstring>
@@ -257,6 +259,8 @@ void CFTMPlayer::InitChannels()
 {
 	for (int i = 0; i < MAX_PLAYER_CHANNELS; ++i) {
 		m_pChannels[i].reset();
+		m_channelWaveformBuffers[i].Reset();
+		m_lastPatternNotes[i] = stChanNote {};
 	}
 	m_iActiveChannels = 0;
 
@@ -530,6 +534,18 @@ void CFTMPlayer::FlushBuffer(int16_t const * pBuffer, uint32_t Size)
 		m_audioFifo.push_back(pBuffer[i]);
 		m_audioFifo.push_back(pBuffer[i]);
 	}
+
+	if (m_pAPU) {
+		std::vector<float> waveformTemp(Size);
+		for (int i = 0; i < m_iActiveChannels; ++i) {
+			if (m_bChannelMuted[i]) {
+				m_channelWaveformBuffers[i].PushZeroes(Size);
+			} else {
+				m_pAPU->ReadChannelWaveformSamples(m_iChannelIDs[i], waveformTemp.data(), Size);
+				m_channelWaveformBuffers[i].Push(waveformTemp.data(), Size);
+			}
+		}
+	}
 }
 
 void CFTMPlayer::ReadPatternRow()
@@ -539,6 +555,7 @@ void CFTMPlayer::ReadPatternRow()
 	for (int i = 0; i < m_iActiveChannels; ++i) {
 		stChanNote note;
 		m_pDocument->GetNoteData(m_iPlayTrack, m_iPlayFrame, i, m_iPlayRow, &note);
+		m_lastPatternNotes[i] = note;
 
 		int effCols = m_pDocument->GetEffColumns(m_iPlayTrack, i) + 1;
 		if (m_pChannels[i]) {
@@ -892,4 +909,145 @@ void CFTMPlayer::GetChannelLevels(float* pOutLevels, int MaxChannels) const
 	for (int i = count; i < MaxChannels; ++i) {
 		pOutLevels[i] = 0.0f;
 	}
+}
+
+int CFTMPlayer::GetChannelID(int Channel) const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	if (Channel < 0 || Channel >= m_iActiveChannels) return -1;
+	return m_iChannelIDs[Channel];
+}
+
+int CFTMPlayer::GetChannelChip(int Channel) const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	if (Channel < 0 || Channel >= m_iActiveChannels) return 0;
+	return static_cast<int>(m_iChannelChips[Channel]);
+}
+
+float CFTMPlayer::GetChannelVU(int Channel) const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	if (Channel < 0 || Channel >= m_iActiveChannels) return 0.0f;
+	if (m_bChannelMuted[Channel]) return 0.0f;
+
+	float samples[256];
+	int count = m_channelWaveformBuffers[Channel].GetSamples(samples, 256);
+	if (count <= 0) return GetChannelLevel(Channel);
+
+	float peak = 0.0f;
+	for (int i = 0; i < count; ++i) {
+		float a = std::abs(samples[i]);
+		if (a > peak) peak = a;
+	}
+	return peak;
+}
+
+int CFTMPlayer::GetChannelWaveform(int Channel, float* pOutBuffer, int MaxSamples) const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	if (!pOutBuffer || MaxSamples <= 0 || Channel < 0 || Channel >= m_iActiveChannels) {
+		return 0;
+	}
+	return m_channelWaveformBuffers[Channel].GetSamples(pOutBuffer, MaxSamples);
+}
+
+int CFTMPlayer::GetChannelDisplayState(int Channel, int32_t* pOutState, int MaxFields) const
+{
+	if (!pOutState || MaxFields <= 0) return 0;
+
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	if (Channel < 0 || Channel >= m_iActiveChannels) {
+		std::fill_n(pOutState, MaxFields, -1);
+		return MaxFields;
+	}
+
+	int32_t state[10];
+	state[0] = Channel;
+	state[1] = -1;
+	state[2] = 0;
+	state[3] = 0;
+	state[4] = -1;
+	state[5] = 0;
+	state[6] = -1;
+	state[7] = -1;
+	state[8] = -1;
+	state[9] = 0;
+
+	if (!m_bChannelMuted[Channel] && m_bPlaying) {
+		if (m_pChannels[Channel] && m_pChannels[Channel]->IsGate()) {
+			int n = m_pChannels[Channel]->GetNote();
+			if (n >= 0 && n < NOTE_COUNT) {
+				state[1] = n + 1;
+			}
+		}
+
+		int vol = m_pAPU ? m_pAPU->GetVol(m_iChannelIDs[Channel]) : 0;
+		state[2] = (std::clamp(vol, 0, 15) * 255) / 15;
+
+		const stChanNote& note = m_lastPatternNotes[Channel];
+		if (note.EffNumber[0] != EF_NONE && note.EffNumber[0] < EF_COUNT) {
+			char ch = EFF_CHAR[note.EffNumber[0]];
+			if (static_cast<unsigned char>(ch) != 0xFF) {
+				state[3] = static_cast<unsigned char>(ch);
+				state[4] = note.EffParam[0];
+			}
+		}
+		if (note.EffNumber[1] != EF_NONE && note.EffNumber[1] < EF_COUNT) {
+			char ch = EFF_CHAR[note.EffNumber[1]];
+			if (static_cast<unsigned char>(ch) != 0xFF) {
+				state[5] = static_cast<unsigned char>(ch);
+				state[6] = note.EffParam[1];
+			}
+		}
+
+		CInstrumentManager* pInstMan = m_pDocument ? m_pDocument->GetInstrumentManager() : nullptr;
+
+		if (m_pChannels[Channel]) {
+			int inst = m_pChannels[Channel]->GetInstrument();
+			if (inst >= 0 && inst < MAX_INSTRUMENTS && pInstMan && pInstMan->IsInstrumentUsed(inst)) {
+				state[7] = inst + 1;
+			}
+		}
+
+		if (m_iChannelIDs[Channel] == CHANID_DPCM && pInstMan && m_pChannels[Channel]) {
+			int inst = m_pChannels[Channel]->GetInstrument();
+			int n = m_pChannels[Channel]->GetNote();
+			if (n >= 0 && inst >= 0) {
+				auto pInst2A03 = std::dynamic_pointer_cast<const CInstrument2A03>(pInstMan->GetInstrument(inst));
+				if (pInst2A03) {
+					int oct = GET_OCTAVE(n);
+					int sNote = GET_NOTE(n) - 1;
+					if (oct >= 0 && oct < OCTAVE_RANGE && sNote >= 0 && sNote < NOTE_RANGE) {
+						char sIdx = pInst2A03->GetSampleIndex(oct, sNote);
+						if (sIdx > 0) state[8] = static_cast<int32_t>(sIdx);
+					}
+				}
+			}
+		}
+
+		if (state[1] > 0 || state[2] > 0 || state[7] > 0 || state[8] > 0) {
+			state[9] |= 1;
+		}
+	}
+
+	int toCopy = std::min(MaxFields, 10);
+	std::memcpy(pOutState, state, toCopy * sizeof(int32_t));
+	if (MaxFields > toCopy) {
+		std::fill_n(pOutState + toCopy, MaxFields - toCopy, -1);
+	}
+	return MaxFields;
+}
+
+std::vector<int32_t> CFTMPlayer::GetChannelDisplayState(int MaxChannels) const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	int count = std::min(MaxChannels, m_iActiveChannels);
+	if (count <= 0) return {};
+
+	std::vector<int32_t> result(static_cast<size_t>(count) * 10, -1);
+	for (int i = 0; i < count; ++i) {
+		GetChannelDisplayState(i, &result[static_cast<size_t>(i) * 10], 10);
+	}
+	return result;
 }
