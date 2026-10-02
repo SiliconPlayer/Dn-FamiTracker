@@ -109,6 +109,10 @@ public:
 	bool GetSurveyMixCheck() const { return m_bUseSurveyMixing; }
 	void SetSurveyMixCheck(bool Check) { m_bUseSurveyMixing = Check; }
 
+	// OPLL patches
+	uint8_t GetOPLLPatchByte(int index) const { return (index >= 0 && index < 19 * 8) ? m_iOPLLPatchBytes[index] : 0; }
+	std::string GetOPLLPatchName(int index) const { return (index >= 0 && index < 19) ? m_strOPLLPatchNames[index] : ""; }
+
 	// Samples
 	void SetSample(unsigned int Index, CDSample *pSamp);
 

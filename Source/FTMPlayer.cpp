@@ -149,7 +149,45 @@ bool CFTMPlayer::SetupSound(int SampleRate, machine_t Machine)
 		for (int i = 0; i < 8; ++i)
 			offsets[i] = m_pDocument->GetLevelOffset(i);
 
-		config.SetupMixer(30, 12000, 24, 100, m_pDocument->GetSurveyMixCheck(), 2000, 12000, offsets);
+		bool useSurvey = m_pDocument->GetSurveyMixCheck();
+
+		std::vector<uint8_t> opllBytes(19 * 8, 0);
+		std::vector<std::string> opllNames(19, "");
+		if (m_pDocument) {
+			for (int i = 0; i < 19; ++i) {
+				for (int j = 0; j < 8; ++j)
+					opllBytes.at((8 * i) + j) = m_pDocument->GetOPLLPatchByte((8 * i) + j);
+				opllNames.at(i) = m_pDocument->GetOPLLPatchName(i);
+			}
+		}
+		config.SetupEmulation(
+			true, // Disable multiplexing = true by default in Dn-FamiTracker
+			0,
+			false,
+			opllBytes,
+			opllNames
+		);
+
+		config.SetupMixer(30, 12000, 24, 100, useSurvey, 2000, 12000, offsets);
+
+		static const int16_t DEFAULT_SURVEY_MIX_LEVELS[CHIP_LEVEL_COUNT] = {
+			0,     // APU1
+			-20,   // APU2
+			0,     // VRC6
+			1340,  // VRC7
+			690,   // FDS
+			0,     // MMC5
+			1540,  // N163
+			-250   // S5B
+		};
+
+		if (useSurvey) {
+			for (int i = 0; i < CHIP_LEVEL_COUNT; ++i)
+				config.SetChipLevel(static_cast<chip_level_t>(i), static_cast<double>(DEFAULT_SURVEY_MIX_LEVELS[i]) / 100.0, true);
+		} else {
+			for (int i = 0; i < CHIP_LEVEL_COUNT; ++i)
+				config.SetChipLevel(static_cast<chip_level_t>(i), 0.0, false);
+		}
 
 		m_pAPU->Write(0x4015, 0x0F);
 		m_pAPU->Write(0x4017, 0x00);
@@ -319,6 +357,7 @@ void CFTMPlayer::InitChannels()
 
 bool CFTMPlayer::SelectSubtune(int Track)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!m_pDocument || Track < 0 || (unsigned int)Track >= m_pDocument->GetTrackCount())
 		return false;
 
@@ -368,6 +407,7 @@ bool CFTMPlayer::SelectSubtune(int Track)
 
 void CFTMPlayer::Reset()
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	m_bPlaying = false;
 	m_bPaused = false;
 	m_bFinished = false;
@@ -636,6 +676,8 @@ int CFTMPlayer::Render(float* pOutStereo, int NumFrames)
 {
 	if (!pOutStereo || NumFrames <= 0) return 0;
 
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
 	if (m_bPaused) {
 		std::fill(pOutStereo, pOutStereo + NumFrames * 2, 0.0f);
 		return NumFrames;
@@ -667,6 +709,8 @@ int CFTMPlayer::Render(int16_t* pOutStereo, int NumFrames)
 {
 	if (!pOutStereo || NumFrames <= 0) return 0;
 
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
 	if (m_bPaused) {
 		memset(pOutStereo, 0, NumFrames * 2 * sizeof(int16_t));
 		return NumFrames;
@@ -695,6 +739,8 @@ int CFTMPlayer::Render(int16_t* pOutStereo, int NumFrames)
 
 void CFTMPlayer::Seek(double Seconds)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
 	if (Seconds <= 0.0) {
 		SelectSubtune(m_iPlayTrack);
 		return;
@@ -718,19 +764,58 @@ void CFTMPlayer::Seek(double Seconds)
 	m_audioFifoReadPos = 0;
 }
 
+bool CFTMPlayer::IsPlaying() const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	return m_bPlaying;
+}
+
+bool CFTMPlayer::IsFinished() const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	return m_bFinished;
+}
+
+bool CFTMPlayer::IsPaused() const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	return m_bPaused;
+}
+
+void CFTMPlayer::SetPaused(bool bPaused)
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	m_bPaused = bPaused;
+}
+
+int CFTMPlayer::GetCurrentFrame() const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	return m_iPlayFrame;
+}
+
+int CFTMPlayer::GetCurrentRow() const
+{
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
+	return m_iPlayRow;
+}
+
 double CFTMPlayer::GetCurrentTimeSeconds() const
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	return m_iFrameRate > 0 ? (double)m_iTotalTicks / (double)m_iFrameRate : 0.0;
 }
 
 const char* CFTMPlayer::GetChannelName(int Channel) const
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (Channel < 0 || Channel >= m_iActiveChannels) return "";
 	return m_strChannelNames[Channel].c_str();
 }
 
 void CFTMPlayer::SetChannelMuted(int Channel, bool Muted)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (Channel >= 0 && Channel < m_iActiveChannels) {
 		m_bChannelMuted[Channel] = Muted;
 	}
@@ -738,6 +823,7 @@ void CFTMPlayer::SetChannelMuted(int Channel, bool Muted)
 
 bool CFTMPlayer::IsChannelMuted(int Channel) const
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (Channel >= 0 && Channel < m_iActiveChannels) {
 		return m_bChannelMuted[Channel];
 	}

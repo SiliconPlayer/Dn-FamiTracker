@@ -29,6 +29,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <mutex>
 
 /*!
 	\brief Headless, deterministic synchronous audio playback engine.
@@ -68,12 +69,12 @@ public:
 	void GetChannelLevels(float* pOutLevels, int MaxChannels) const;
 
 	// Playback State
-	bool IsPlaying() const { return m_bPlaying; }
-	bool IsFinished() const { return m_bFinished; }
-	bool IsPaused() const { return m_bPaused; }
-	void SetPaused(bool bPaused) { m_bPaused = bPaused; }
-	int GetCurrentFrame() const { return m_iPlayFrame; }
-	int GetCurrentRow() const { return m_iPlayRow; }
+	bool IsPlaying() const;
+	bool IsFinished() const;
+	bool IsPaused() const;
+	void SetPaused(bool bPaused);
+	int GetCurrentFrame() const;
+	int GetCurrentRow() const;
 	double GetCurrentTimeSeconds() const;
 
 	// ISoundGen implementation
@@ -157,4 +158,6 @@ private:
 	// Sample buffer FIFO
 	std::vector<int16_t> m_audioFifo;
 	size_t m_audioFifoReadPos;
+
+	mutable std::recursive_mutex m_mutex;
 };
