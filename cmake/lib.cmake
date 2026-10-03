@@ -93,6 +93,7 @@ if(BUILD_LIB)
     if(NOT MSVC)
         target_compile_options(dnfamitracker PRIVATE
             -fPIC
+            -fsigned-char
             -Wall
             -Wextra
             -Wno-unused-parameter
